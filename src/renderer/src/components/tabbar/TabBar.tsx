@@ -27,7 +27,7 @@ export function TabBar() {
         {regularTabs.map((tab) => (
           <div
             key={tab.id}
-            className="max-w-[180px] min-w-[80px] flex-1 shrink-0 animate-tab-enter overflow-hidden"
+            className="max-w-[200px] min-w-[100px] flex-1 shrink-0 animate-tab-enter overflow-hidden"
           >
             <Tab tab={tab} active={tab.id === activeTabId} />
           </div>

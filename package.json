@@ -1,0 +1,47 @@
+{
+  "name": "lumen-browser",
+  "version": "0.1.0",
+  "description": "A glassmorphic desktop web browser — macOS vibrancy UI on Electron/Chromium",
+  "main": "out/main/index.cjs",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "dev": "concurrently -k \"npm:dev:main\" \"npm:dev:renderer\"",
+    "dev:main": "node scripts/dev-main.mjs",
+    "dev:renderer": "vite --config vite.renderer.config.mjs",
+    "build": "npm run build:renderer && npm run build:main",
+    "build:renderer": "vite build --config vite.renderer.config.mjs",
+    "build:main": "esbuild src/main/index.ts src/preload/index.ts --bundle --platform=node --format=cjs --external:electron --external:better-sqlite3 --outdir=out --out-extension:.js=.cjs",
+    "start": "npm run build && electron .",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/node": "^22.10.0",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "concurrently": "^9.1.0",
+    "electron": "^33.2.0",
+    "esbuild": "^0.24.0",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.15",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.3"
+  },
+  "dependencies": {
+    "@fontsource/outfit": "^5.3.0",
+    "better-sqlite3": "^11.7.0",
+    "lucide-react": "^1.29.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "zustand": "^5.0.2"
+  },
+  "allowScripts": {
+    "electron@33.4.11": true,
+    "esbuild@0.24.2": true,
+    "esbuild@0.25.12": true,
+    "better-sqlite3@11.10.0": true
+  }
+}

@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+out/
+dist/
+build/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment & local files
+.env
+.env.local
+.env.*.local
+*.local
+
+# SQLite local databases if any
+*.db
+*.sqlite
+*.sqlite3
