@@ -21,30 +21,19 @@ if (!gotLock) {
 }
 
 // ──── High-Performance Chromium Engine Flags ────
-app.commandLine.appendSwitch('ignore-gpu-blocklist');
-app.commandLine.appendSwitch('enable-gpu-rasterization');
-app.commandLine.appendSwitch('enable-zero-copy');
-app.commandLine.appendSwitch('enable-native-gpu-memory-buffers');
 app.commandLine.appendSwitch('enable-accelerated-2d-canvas');
 app.commandLine.appendSwitch('enable-accelerated-video-decode');
 app.commandLine.appendSwitch('enable-quic');
 app.commandLine.appendSwitch('enable-fast-unload');
 app.commandLine.appendSwitch('enable-v8-idle-tasks');
 app.commandLine.appendSwitch('disable-background-timer-throttling');
-app.commandLine.appendSwitch('disable-renderer-backgrounding');
 if (process.platform === 'linux') {
-  app.commandLine.appendSwitch('ozone-platform-hint', 'auto');
-  app.commandLine.appendSwitch('disable-gpu-sandbox');
-  app.commandLine.appendSwitch(
-    'enable-features',
-    'ParallelDownloading,BackForwardCache,WebAssemblySimd,CanvasOopRasterization,VaapiVideoDecoder,VaapiVideoEncoder',
-  );
-} else {
-  app.commandLine.appendSwitch(
-    'enable-features',
-    'ParallelDownloading,BackForwardCache,WebAssemblySimd,CanvasOopRasterization',
-  );
+  app.commandLine.appendSwitch('disable-gpu-compositing');
 }
+app.commandLine.appendSwitch(
+  'enable-features',
+  'ParallelDownloading,BackForwardCache,WebAssemblySimd',
+);
 
 app.whenReady().then(() => {
   initDatabase();
