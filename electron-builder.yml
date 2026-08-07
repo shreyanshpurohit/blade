@@ -1,0 +1,17 @@
+appId: com.lumen.browser
+productName: Lumen
+directories:
+  output: release
+  buildResources: build
+files:
+  - out/**/*
+  - node_modules/better-sqlite3/**/*
+  - package.json
+asarUnpack:
+  - "**/*.node"
+linux:
+  target:
+    - AppImage
+    - deb
+  category: Network
+  icon: build/icon.png

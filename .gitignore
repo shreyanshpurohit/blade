@@ -4,7 +4,8 @@ node_modules/
 # Build outputs
 out/
 dist/
-build/
+release/
+!build/icon.png
 
 # Logs
 *.log

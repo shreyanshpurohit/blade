@@ -5,6 +5,7 @@
   "main": "out/main/index.cjs",
   "type": "module",
   "license": "MIT",
+  "author": "Shreyansh Purohit <shreyansh.purohit@apsvp.onmicrosoft.com>",
   "scripts": {
     "dev": "concurrently -k \"npm:dev:main\" \"npm:dev:renderer\"",
     "dev:main": "node scripts/dev-main.mjs",
@@ -13,7 +14,8 @@
     "build:renderer": "vite build --config vite.renderer.config.mjs",
     "build:main": "esbuild src/main/index.ts src/preload/index.ts --bundle --platform=node --format=cjs --external:electron --external:better-sqlite3 --outdir=out --out-extension:.js=.cjs",
     "start": "npm run build && electron .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "dist": "npm run build && electron-builder --linux"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.11",
@@ -24,6 +26,7 @@
     "autoprefixer": "^10.4.20",
     "concurrently": "^9.1.0",
     "electron": "^33.2.0",
+    "electron-builder": "^26.15.3",
     "esbuild": "^0.24.0",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.15",
