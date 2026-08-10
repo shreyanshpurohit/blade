@@ -8,11 +8,12 @@ interface AppMenuProps {
   onClose: () => void;
   anchorRef?: React.RefObject<HTMLButtonElement | null>;
   standalone?: boolean;
+  customPos?: { x: number; y: number };
 }
 
 type SubmenuId = 'passwords' | 'history' | 'bookmarks' | 'extensions' | 'save_share' | 'more_tools' | 'help' | null;
 
-export function AppMenu({ isOpen, onClose, anchorRef, standalone = false }: AppMenuProps) {
+export function AppMenu({ isOpen, onClose, anchorRef, standalone = false, customPos }: AppMenuProps) {
   const {
     activeTab,
     createTab,
@@ -103,8 +104,18 @@ export function AppMenu({ isOpen, onClose, anchorRef, standalone = false }: AppM
       ref={menuRef}
       className={
         standalone
-          ? "w-full h-full glass-panel backdrop-blur-2xl border border-white/[0.12] rounded-2xl p-2 text-white select-none overflow-hidden flex flex-col"
+          ? "absolute glass-panel backdrop-blur-2xl border border-white/[0.12] rounded-2xl p-2 text-white select-none overflow-hidden flex flex-col"
           : "absolute right-6 top-14 z-50 w-[295px] glass-panel backdrop-blur-2xl border border-white/[0.12] rounded-2xl p-2 shadow-2xl text-white select-none animate-menu-in flex flex-col"
+      }
+      style={
+        standalone && customPos
+          ? {
+              top: `${Math.max(0, customPos.y + 4)}px`,
+              left: `${Math.max(0, customPos.x - 310)}px`,
+              width: '310px',
+              height: '660px',
+            }
+          : undefined
       }
     >
 

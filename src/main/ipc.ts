@@ -108,8 +108,11 @@ export function registerIpc() {
   });
 
   ipcMain.handle(IPC.SetAppMenuOpen, (e, open: boolean) => {
-    const { tm } = managerFor(e);
+    const { tm, win } = managerFor(e);
     tm.setAppMenuOpen(open);
+    if (!open) {
+      WindowManager.closeAppMenu(win);
+    }
   });
 
   ipcMain.handle(IPC.ClearBrowsingData, async (e) => {

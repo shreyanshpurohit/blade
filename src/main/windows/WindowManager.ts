@@ -109,33 +109,20 @@ export const WindowManager = {
     }
   },
 
+  appMenuView: null as any, // WebContentsView
+
   toggleAppMenu(parentWin: BrowserWindow, bounds: { x: number; y: number }) {
-    const existing = BrowserWindow.getAllWindows().find((w) => w.title === '__lumen_app_menu__');
-    if (existing && !existing.isDestroyed()) {
-      existing.close();
+    if (this.appMenuView) {
+      parentWin.contentView.removeChildView(this.appMenuView);
+      (this.appMenuView.webContents as any).destroy();
+      this.appMenuView = null;
       return;
     }
 
-    const width = 310;
-    const height = 660;
-    const x = Math.max(10, Math.round(bounds.x - width));
-    const y = Math.max(10, Math.round(bounds.y + 4));
+    const { WebContentsView } = require('electron');
+    const [winWidth, winHeight] = parentWin.getContentSize();
 
-    const menuWin = new BrowserWindow({
-      title: '__lumen_app_menu__',
-      parent: parentWin,
-      width,
-      height,
-      x,
-      y,
-      frame: false,
-      transparent: true,
-      resizable: false,
-      show: true, // fix wayland deadlock
-      alwaysOnTop: true,
-      skipTaskbar: true,
-      hasShadow: false,
-      backgroundColor: '#00000000',
+    const menuView = new WebContentsView({
       webPreferences: {
         preload: preloadPath(),
         contextIsolation: true,
@@ -144,34 +131,36 @@ export const WindowManager = {
       },
     });
 
-    menuWin.setMenuBarVisibility(false);
-    menuWin.setMenu(null);
+    menuView.setBackgroundColor('#00000000');
+    parentWin.contentView.addChildView(menuView);
+    menuView.setBounds({ x: 0, y: 0, width: winWidth, height: winHeight });
 
     const devUrl = process.env.LUMEN_DEV_SERVER_URL;
+    const hash = `#/app-menu?x=${bounds.x}&y=${bounds.y}`;
     if (devUrl) {
-      menuWin.loadURL(`${devUrl}#/app-menu`);
+      menuView.webContents.loadURL(`${devUrl}${hash}`);
     } else {
-      menuWin.loadFile(rendererEntry(), { hash: '/app-menu' });
+      menuView.webContents.loadFile(rendererEntry(), { hash });
     }
 
-    menuWin.on('blur', () => {
-      if (!menuWin.isDestroyed()) {
-        menuWin.close();
+    menuView.webContents.on('before-input-event', (event: any, input: any) => {
+      if (input.type === 'keyDown' && input.key === 'Escape') {
+        this.closeAppMenu(parentWin);
       }
     });
 
-    const closeHandler = () => {
-      if (!menuWin.isDestroyed()) menuWin.close();
-    };
-    parentWin.once('move', closeHandler);
-    parentWin.once('resize', closeHandler);
-    parentWin.once('minimize', closeHandler);
+    this.appMenuView = menuView;
+  },
 
-    menuWin.on('closed', () => {
-      parentWin.removeListener('move', closeHandler);
-      parentWin.removeListener('resize', closeHandler);
-      parentWin.removeListener('minimize', closeHandler);
-    });
+  closeAppMenu(parentWin?: BrowserWindow) {
+    if (this.appMenuView) {
+      const win = parentWin || BrowserWindow.fromWebContents(this.appMenuView.webContents as any);
+      if (win) {
+        win.contentView.removeChildView(this.appMenuView);
+      }
+      (this.appMenuView.webContents as any).destroy();
+      this.appMenuView = null;
+    }
   },
 
   primaryWindow(): BrowserWindow | undefined {

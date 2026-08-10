@@ -12,7 +12,7 @@ import { NewTab } from './components/newtab/NewTab';
 import { AppMenu } from './components/chrome/AppMenu';
 
 export function App() {
-  if (window.location.hash === '#/app-menu') {
+  if (window.location.hash.startsWith('#/app-menu')) {
     return <StandaloneAppMenu />;
   }
   return <ChromeShell />;
@@ -24,12 +24,20 @@ function StandaloneAppMenu() {
     void init();
   }, [init]);
 
+  const params = new URLSearchParams(window.location.hash.split('?')[1] || '');
+  const x = parseInt(params.get('x') || '0', 10);
+  const y = parseInt(params.get('y') || '0', 10);
+
   return (
-    <div className="w-screen h-screen overflow-hidden bg-transparent">
+    <div className="w-screen h-screen overflow-hidden bg-transparent pointer-events-auto">
       <AppMenu
         isOpen={true}
-        onClose={() => window.close()}
+        onClose={() => {
+          void api.app.setAppMenuOpen(false);
+          window.close();
+        }}
         standalone={true}
+        customPos={{ x, y }}
       />
     </div>
   );
