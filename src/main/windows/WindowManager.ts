@@ -23,21 +23,22 @@ export const SIDEBAR_WIDTH = 320;
 
 export const WindowManager = {
   createWindow({ incognito }: CreateOptions): BrowserWindow {
+    const isDarwin = process.platform === 'darwin';
     const win = new BrowserWindow({
       width: 1440,
       height: 900,
       minWidth: 720,
       minHeight: 480,
       frame: false,
-      titleBarStyle: 'hidden',
-      trafficLightPosition: { x: 16, y: 18 },
+      titleBarStyle: isDarwin ? 'hidden' : undefined,
+      trafficLightPosition: isDarwin ? { x: 16, y: 18 } : undefined,
       backgroundColor: getSetting('surfaceColor', '#1e1914'),
-      transparent: process.platform === 'darwin',
-      vibrancy: process.platform === 'darwin' ? 'under-window' : undefined,
+      transparent: isDarwin,
+      vibrancy: isDarwin ? 'under-window' : undefined,
       visualEffectState: 'active',
-      roundedCorners: true,
+      roundedCorners: isDarwin,
       autoHideMenuBar: true,
-      show: false,
+      show: true,
       webPreferences: {
         preload: preloadPath(),
         contextIsolation: true,
@@ -49,7 +50,7 @@ export const WindowManager = {
 
     win.setMenuBarVisibility(false);
     win.setMenu(null);
-    win.once('ready-to-show', () => win.show());
+    if (!isDarwin) win.show();
 
     win.webContents.on('console-message', (_e, level, message) => {
       console.log(`[chrome:${level}] ${message}`);
