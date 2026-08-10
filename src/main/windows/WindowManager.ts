@@ -131,7 +131,7 @@ export const WindowManager = {
       frame: false,
       transparent: true,
       resizable: false,
-      show: false,
+      show: true, // fix wayland deadlock
       alwaysOnTop: true,
       skipTaskbar: true,
       hasShadow: false,
@@ -153,12 +153,6 @@ export const WindowManager = {
     } else {
       menuWin.loadFile(rendererEntry(), { hash: '/app-menu' });
     }
-
-    menuWin.once('ready-to-show', () => {
-      if (!menuWin.isDestroyed()) {
-        menuWin.show();
-      }
-    });
 
     menuWin.on('blur', () => {
       if (!menuWin.isDestroyed()) {

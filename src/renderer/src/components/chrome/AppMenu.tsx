@@ -6,12 +6,13 @@ import type { IconName } from '../common/Icon';
 interface AppMenuProps {
   isOpen: boolean;
   onClose: () => void;
-  anchorRef: React.RefObject<HTMLButtonElement | null>;
+  anchorRef?: React.RefObject<HTMLButtonElement | null>;
+  standalone?: boolean;
 }
 
 type SubmenuId = 'passwords' | 'history' | 'bookmarks' | 'extensions' | 'save_share' | 'more_tools' | 'help' | null;
 
-export function AppMenu({ isOpen, onClose, anchorRef }: AppMenuProps) {
+export function AppMenu({ isOpen, onClose, anchorRef, standalone = false }: AppMenuProps) {
   const {
     activeTab,
     createTab,
@@ -54,11 +55,11 @@ export function AppMenu({ isOpen, onClose, anchorRef }: AppMenuProps) {
     const handleClickOutside = (e: MouseEvent) => {
       if (
         menuRef.current &&
-        !menuRef.current.contains(e.target as Node) &&
-        anchorRef.current &&
-        !anchorRef.current.contains(e.target as Node)
+        !menuRef.current.contains(e.target as Node)
       ) {
-        onClose();
+        if (!anchorRef?.current || !anchorRef.current.contains(e.target as Node)) {
+          onClose();
+        }
       }
     };
 
@@ -100,7 +101,11 @@ export function AppMenu({ isOpen, onClose, anchorRef }: AppMenuProps) {
   return (
     <div
       ref={menuRef}
-      className="absolute right-6 top-14 z-50 w-[295px] glass-panel backdrop-blur-2xl border border-white/[0.12] rounded-2xl p-2 shadow-2xl text-white select-none animate-menu-in"
+      className={
+        standalone
+          ? "w-full h-full glass-panel backdrop-blur-2xl border border-white/[0.12] rounded-2xl p-2 text-white select-none overflow-hidden flex flex-col"
+          : "absolute right-6 top-14 z-50 w-[295px] glass-panel backdrop-blur-2xl border border-white/[0.12] rounded-2xl p-2 shadow-2xl text-white select-none animate-menu-in flex flex-col"
+      }
     >
 
       {/* 1. Window & Tab Group */}

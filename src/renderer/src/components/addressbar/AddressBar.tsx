@@ -312,7 +312,10 @@ export function AddressBar({ showTrafficLights = false }: AddressBarProps) {
         <button
           ref={appMenuBtnRef}
           title="Tabs & Menu (Alt+F)"
-          onClick={toggleAppMenu}
+          onClick={(e) => {
+            const rect = e.currentTarget.getBoundingClientRect();
+            window.lumen.app.showAppMenu({ x: rect.right, y: rect.bottom });
+          }}
           className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
             appMenuOpen
               ? 'bg-white/20 text-white'
@@ -324,13 +327,6 @@ export function AddressBar({ showTrafficLights = false }: AddressBarProps) {
 
         {showTrafficLights && <TrafficLights />}
       </div>
-
-      {/* App Menu Overlay */}
-      <AppMenu
-        isOpen={!!appMenuOpen}
-        onClose={() => setAppMenuOpen(false)}
-        anchorRef={appMenuBtnRef}
-      />
     </div>
   );
 }

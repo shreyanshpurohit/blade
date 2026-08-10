@@ -9,8 +9,30 @@ import { Sidebar } from './components/sidebar/Sidebar';
 import { SettingsPage } from './components/settings/SettingsPage';
 import { NewTab } from './components/newtab/NewTab';
 
+import { AppMenu } from './components/chrome/AppMenu';
+
 export function App() {
+  if (window.location.hash === '#/app-menu') {
+    return <StandaloneAppMenu />;
+  }
   return <ChromeShell />;
+}
+
+function StandaloneAppMenu() {
+  const init = useBrowserStore((s) => s.init);
+  useEffect(() => {
+    void init();
+  }, [init]);
+
+  return (
+    <div className="w-screen h-screen overflow-hidden bg-transparent">
+      <AppMenu
+        isOpen={true}
+        onClose={() => window.close()}
+        standalone={true}
+      />
+    </div>
+  );
 }
 
 function ChromeShell() {
