@@ -503,11 +503,10 @@ export class TabManager {
     if (!active || active.hibernated || isInternalUrl(active.state.url)) return;
     const [width, height] = this.win.getContentSize();
     const x = this.sidebarOpen ? SIDEBAR_WIDTH : 0;
-    const rightMargin = this.appMenuOpen ? 320 : 0;
     active.view.setBounds({
       x,
       y: this.chromeHeight,
-      width: Math.max(0, width - x - rightMargin),
+      width: Math.max(0, width - x),
       height: Math.max(0, height - this.chromeHeight),
     });
   }
