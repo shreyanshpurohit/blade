@@ -13,6 +13,9 @@ linux:
   target:
     - AppImage
     - deb
+    - pacman
+    - rpm
+    - snap
   category: Network
   icon: build/icon.png
 win:
