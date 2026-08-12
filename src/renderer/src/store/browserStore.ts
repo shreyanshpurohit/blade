@@ -42,6 +42,7 @@ interface BrowserStore extends WindowState {
 
   createTab: (url?: string) => void;
   closeTab: (id: string) => void;
+  reopenClosedTab: () => void;
   activateTab: (id: string) => void;
   navigateActive: (url: string) => void;
   goBack: () => void;
@@ -122,11 +123,13 @@ export const useBrowserStore = create<BrowserStore>((set, get) => ({
     const glassBlur = s.glassBlur !== undefined && !isNaN(Number(s.glassBlur)) ? Number(s.glassBlur) : DEFAULT_CUSTOMIZATION.glassBlur;
     const cornerRadius = s.cornerRadius !== undefined && !isNaN(Number(s.cornerRadius)) ? Number(s.cornerRadius) : DEFAULT_CUSTOMIZATION.cornerRadius;
     const tintGlow = s.tintGlow !== undefined ? (String(s.tintGlow) === 'true' || s.tintGlow === true) : DEFAULT_CUSTOMIZATION.tintGlow;
+    const verticalTabs = s.verticalTabs !== undefined ? String(s.verticalTabs) === 'true' : false;
+    const bookmarksBarVisible = s.bookmarksBarVisible !== undefined ? String(s.bookmarksBarVisible) === 'true' : true;
 
     set({
       theme: s.theme || 'system',
-      verticalTabs: s.verticalTabs,
-      bookmarksBarVisible: s.bookmarksBarVisible,
+      verticalTabs,
+      bookmarksBarVisible,
       accentColor,
       surfaceColor,
       glassOpacity,
@@ -211,6 +214,7 @@ export const useBrowserStore = create<BrowserStore>((set, get) => ({
 
   createTab: (url) => void api.tabs.create(url),
   closeTab: (id) => void api.tabs.close(id),
+  reopenClosedTab: () => void api.tabs.reopenClosed(),
   activateTab: (id) => void api.tabs.activate(id),
 
   navigateActive: (url) => {
@@ -323,6 +327,20 @@ function handleMenuAction(action: string, s: BrowserStore) {
     case 'menu:toggleBookmarksBar': s.setBookmarksBarVisible(!s.bookmarksBarVisible); break;
     case 'menu:settings': s.openSettings(); break;
     case 'menu:newIncognito': void api.app.newIncognitoWindow(); break;
+    case 'menu:focusAddressBar': {
+      const input = document.querySelector<HTMLInputElement>('input[placeholder="Search or enter website name..."]');
+      input?.focus();
+      input?.select();
+      break;
+    }
+    case 'menu:find': {
+      const query = window.prompt('Find in page');
+      if (query) void api.tabs.find(query);
+      break;
+    }
+    case 'menu:openBookmarks': s.setSidebar(true, 'bookmarks'); break;
+    case 'menu:openHistory': s.setSidebar(true, 'history'); break;
+    case 'menu:openDownloads': s.setSidebar(true, 'downloads'); break;
   }
 }
 

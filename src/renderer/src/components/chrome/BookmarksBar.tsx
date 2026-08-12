@@ -14,9 +14,8 @@ export function BookmarksBar() {
   const measureRef = useRef<HTMLDivElement>(null);
   const [visibleCount, setVisibleCount] = useState<number>(1000);
   const [isOverflowing, setIsOverflowing] = useState(false);
+  const { bookmarksBarVisible } = useBrowserStore();
   
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; bookmark: BookmarkNode } | null>(null);
-
   const loadBookmarks = () => {
     void api.bookmarks.list().then((b) => {
       setBookmarks(b as BookmarkNode[]);
@@ -33,6 +32,8 @@ export function BookmarksBar() {
     const measure = () => {
       if (!measureRef.current || !containerRef.current) return;
       const containerWidth = containerRef.current.clientWidth;
+      if (containerWidth === 0) return;
+      
       const children = Array.from(measureRef.current.children) as HTMLElement[];
       let count = 0;
       let width = 0;
@@ -62,21 +63,12 @@ export function BookmarksBar() {
     return () => observer.disconnect();
   }, [topLevel.length, bookmarks]);
 
-  const handleContextMenu = (e: React.MouseEvent, bookmark: BookmarkNode) => {
+  const handleContextMenu = async (e: React.MouseEvent, bookmark: BookmarkNode) => {
     e.preventDefault();
     e.stopPropagation();
-    setContextMenu({ x: e.clientX, y: e.clientY, bookmark });
+    await api.app.showBookmarkContextMenu(bookmark.id, bookmark.url ?? undefined);
+    loadBookmarks(); // refresh after the menu is closed in case they deleted it
   };
-
-  useEffect(() => {
-    const hide = () => setContextMenu(null);
-    document.addEventListener('click', hide);
-    document.addEventListener('scroll', hide);
-    return () => {
-      document.removeEventListener('click', hide);
-      document.removeEventListener('scroll', hide);
-    };
-  }, []);
 
   const handleDelete = async (id: number) => {
     await api.bookmarks.remove(id);
@@ -137,33 +129,6 @@ export function BookmarksBar() {
           <OverflowMenu overflowItems={overflowItems} allBookmarks={bookmarks} onContextMenu={handleContextMenu} />
         )}
       </div>
-
-      {contextMenu && (
-        <div 
-          className="fixed z-[100] bg-[var(--color-bg-primary)] border border-white/10 rounded-md shadow-xl py-1 w-48 text-[12px]"
-          style={{ top: contextMenu.y, left: contextMenu.x }}
-        >
-          <button 
-            className="w-full text-left px-3 py-1.5 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-white/[0.06] flex items-center gap-2"
-            onClick={() => contextMenu.bookmark.url && createTab(contextMenu.bookmark.url)}
-          >
-            Open in New Tab
-          </button>
-          <button 
-            className="w-full text-left px-3 py-1.5 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-white/[0.06] flex items-center gap-2"
-            onClick={() => console.log('Edit clicked for', contextMenu.bookmark.id)}
-          >
-            Edit
-          </button>
-          <div className="h-px bg-white/10 my-1" />
-          <button 
-            className="w-full text-left px-3 py-1.5 text-red-400 hover:text-red-300 hover:bg-red-500/10 flex items-center gap-2"
-            onClick={() => handleDelete(contextMenu.bookmark.id)}
-          >
-            Delete
-          </button>
-        </div>
-      )}
     </div>
   );
 }

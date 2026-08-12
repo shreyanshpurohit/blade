@@ -32,15 +32,15 @@ export function TabBar() {
             <Tab tab={tab} active={tab.id === activeTabId} />
           </div>
         ))}
+        
+        <button
+          onClick={() => createTab()}
+          title="New Tab (Ctrl+T)"
+          className="nav-pill no-drag shrink-0 ml-1"
+        >
+          <Icon name="plus" size={13} />
+        </button>
       </div>
-
-      <button
-        onClick={() => createTab()}
-        title="New Tab (Ctrl+T)"
-        className="nav-pill no-drag shrink-0"
-      >
-        <Icon name="plus" size={13} />
-      </button>
     </div>
   );
 }

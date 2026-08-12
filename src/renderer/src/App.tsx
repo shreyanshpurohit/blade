@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import { useBrowserStore } from './store/browserStore';
 import { api } from './lib/api';
 import { TrafficLights, TrafficLightsSpacer } from './components/chrome/TrafficLights';
@@ -34,7 +34,6 @@ function StandaloneAppMenu() {
         isOpen={true}
         onClose={() => {
           void api.app.setAppMenuOpen(false);
-          window.close();
         }}
         standalone={true}
         customPos={{ x, y }}
@@ -66,18 +65,35 @@ function ChromeShell() {
     activeTab.url === 'about:blank' ||
     activeTab.url.includes('honeyquote.com');
 
-  const showTabStrip = tabs.length > 1;
+  const showTabStrip = true;
 
   useEffect(() => {
     void init();
   }, [init]);
 
-  // Sync chrome height with main process layout
-  useEffect(() => {
-    const baseHeight = showTabStrip ? 105 : 60;
-    const totalHeight = baseHeight + (bookmarksBarVisible ? 33 : 0);
-    void api.app.setChromeHeight(totalHeight);
-  }, [showTabStrip, bookmarksBarVisible]);
+  const headerRef = useRef<HTMLElement>(null);
+
+  // Sync chrome height with main process layout dynamically
+  useLayoutEffect(() => {
+    if (!headerRef.current) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const height = headerRef.current?.getBoundingClientRect().height ?? entry.contentRect.height;
+        if (height > 0) {
+          void api.app.setChromeHeight(Math.round(height));
+        }
+      }
+    });
+    observer.observe(headerRef.current);
+    
+    // Initial measure
+    const initialHeight = headerRef.current.getBoundingClientRect().height;
+    if (initialHeight > 0) {
+      void api.app.setChromeHeight(Math.round(initialHeight));
+    }
+    
+    return () => observer.disconnect();
+  }, [initialized, activeTab?.id, showTabStrip, bookmarksBarVisible]);
 
   useEffect(() => {
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
@@ -103,6 +119,75 @@ function ChromeShell() {
       } else if (isCmdOrCtrl && e.key === '0') {
         e.preventDefault();
         useBrowserStore.getState().zoomReset();
+      } else if (isCmdOrCtrl && e.key.toLowerCase() === 't' && !e.shiftKey) {
+        e.preventDefault();
+        useBrowserStore.getState().createTab();
+      } else if (isCmdOrCtrl && e.key.toLowerCase() === 'w' && !e.shiftKey) {
+        e.preventDefault();
+        const id = useBrowserStore.getState().activeTabId;
+        if (id) useBrowserStore.getState().closeTab(id);
+      } else if (isCmdOrCtrl && e.shiftKey && e.key.toLowerCase() === 't') {
+        e.preventDefault();
+        useBrowserStore.getState().reopenClosedTab();
+      } else if (isCmdOrCtrl && e.key.toLowerCase() === 'r') {
+        e.preventDefault();
+        const s = useBrowserStore.getState();
+        const id = s.activeTabId;
+        if (id && e.shiftKey) void api.tabs.reloadIgnoringCache(id);
+        else s.reload();
+      } else if (isCmdOrCtrl && e.key.toLowerCase() === 'l') {
+        e.preventDefault();
+        const input = document.querySelector<HTMLInputElement>('input[placeholder="Search or enter website name..."]');
+        input?.focus();
+        input?.select();
+      } else if (isCmdOrCtrl && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        const query = window.prompt('Find in page');
+        if (query) void api.tabs.find(query);
+      } else if (isCmdOrCtrl && e.shiftKey && e.key.toLowerCase() === 'b') {
+        e.preventDefault();
+        const s = useBrowserStore.getState();
+        s.setBookmarksBarVisible(!s.bookmarksBarVisible);
+      } else if (isCmdOrCtrl && e.key.toLowerCase() === 'd') {
+        e.preventDefault();
+        void useBrowserStore.getState().toggleBookmarkActive();
+      } else if (isCmdOrCtrl && e.key.toLowerCase() === 'n') {
+        e.preventDefault();
+        if (e.shiftKey) useBrowserStore.getState().newIncognitoWindow();
+        else useBrowserStore.getState().newWindow();
+      } else if (isCmdOrCtrl && e.shiftKey && e.key.toLowerCase() === 'i') {
+        e.preventDefault();
+        useBrowserStore.getState().toggleDevTools();
+      } else if (isCmdOrCtrl && e.shiftKey && e.key.toLowerCase() === 'j') {
+        e.preventDefault();
+        useBrowserStore.getState().toggleDevTools('bottom');
+      } else if (isCmdOrCtrl && e.key.toLowerCase() === ',') {
+        e.preventDefault();
+        useBrowserStore.getState().openSettings();
+      } else if (isCmdOrCtrl && e.key.toLowerCase() === 'u') {
+        e.preventDefault();
+        useBrowserStore.getState().viewSource();
+      } else if (isCmdOrCtrl && e.shiftKey && e.key.toLowerCase() === 'o') {
+        e.preventDefault();
+        useBrowserStore.getState().setSidebar(true, 'bookmarks');
+      } else if (isCmdOrCtrl && e.key.toLowerCase() === 'h') {
+        e.preventDefault();
+        useBrowserStore.getState().setSidebar(true, 'history');
+      } else if (isCmdOrCtrl && e.key.toLowerCase() === 'j') {
+        e.preventDefault();
+        useBrowserStore.getState().setSidebar(true, 'downloads');
+      } else if (isCmdOrCtrl && e.shiftKey && (e.key === 'Delete' || e.key === 'Backspace')) {
+        e.preventDefault();
+        void useBrowserStore.getState().clearBrowsingData();
+      } else if (isCmdOrCtrl && e.shiftKey && e.key.toLowerCase() === 'q') {
+        e.preventDefault();
+        useBrowserStore.getState().exit();
+      } else if (isCmdOrCtrl && e.key >= '1' && e.key <= '9') {
+        e.preventDefault();
+        const s = useBrowserStore.getState();
+        const index = e.key === '9' ? s.tabs.length - 1 : Number(e.key) - 1;
+        const tab = s.tabs[index];
+        if (tab) s.activateTab(tab.id);
       } else if (e.key === 'F11') {
         e.preventDefault();
         useBrowserStore.getState().toggleFullscreen();
@@ -143,7 +228,7 @@ function ChromeShell() {
   return (
     <div className="h-full flex flex-col relative overflow-hidden" style={{ background: 'transparent' }}>
       {/* ── Glassmorphic Chrome Header ── */}
-      <header className="glass-bar relative z-20 shrink-0 select-none">
+      <header ref={headerRef} className="glass-bar relative z-20 shrink-0 select-none">
         {/* Tab strip — only when multiple tabs are open */}
         {showTabStrip && (
           <div className="flex items-center pr-2 border-b border-white/[0.06]">
