@@ -23,3 +23,18 @@ win:
     - nsis
     - portable
   icon: build/icon.png
+pacman:
+  depends:
+    - c-ares
+    - ffmpeg
+    - gtk3
+    - libevent
+    - libvpx
+    - libxslt
+    - libxss
+    - minizip
+    - nss
+    - re2
+    - snappy
+    - libnotify
+    - libsecret
