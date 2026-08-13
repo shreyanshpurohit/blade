@@ -15,9 +15,10 @@ import {
   toggleBookmark,
   getBookmarkByUrl,
 } from './store/bookmarks';
-import { getSetting, setSetting } from './store/database';
-import { listHistory, searchHistory, clearHistory, getHistoryTerrain } from './store/history';
+import { getSetting, getSettingsByPrefix, setSetting } from './store/database';
+import { listHistory, searchHistory, clearHistory, removeHistoryEntry, getHistoryTerrain } from './store/history';
 import { listDownloads, pauseDownload, resumeDownload, cancelDownload } from './downloads';
+import { listPasswords, savePassword, removePassword } from './store/passwords';
 
 function managerFor(event: Electron.IpcMainInvokeEvent) {
   const win = BrowserWindow.fromWebContents(event.sender);
@@ -30,11 +31,14 @@ function managerFor(event: Electron.IpcMainInvokeEvent) {
 export function registerIpc() {
   ipcMain.handle(IPC.TabCreate, (e, url?: string) => managerFor(e).tm.createTab(url));
   ipcMain.handle(IPC.TabClose, (e, id: string) => managerFor(e).tm.closeTab(id));
+  ipcMain.handle(IPC.TabReopenClosed, (e) => managerFor(e).tm.reopenClosedTab());
   ipcMain.handle(IPC.TabActivate, (e, id: string) => managerFor(e).tm.activateTab(id));
   ipcMain.handle(IPC.TabNavigate, (e, id: string, url: string) => managerFor(e).tm.navigate(id, url));
   ipcMain.handle(IPC.TabGoBack, (e, id: string) => managerFor(e).tm.goBack(id));
   ipcMain.handle(IPC.TabGoForward, (e, id: string) => managerFor(e).tm.goForward(id));
   ipcMain.handle(IPC.TabReload, (e, id: string) => managerFor(e).tm.reload(id));
+  ipcMain.handle(IPC.TabReloadIgnoringCache, (e, id: string) => managerFor(e).tm.reloadIgnoringCache(id));
+  ipcMain.handle(IPC.TabFind, (e, query: string, id?: string) => managerFor(e).tm.findInPage(query, id));
   ipcMain.handle(IPC.TabStop, (e, id: string) => managerFor(e).tm.stop(id));
   ipcMain.handle(IPC.TabTogglePin, (e, id: string) => managerFor(e).tm.togglePin(id));
   ipcMain.handle(IPC.TabToggleMute, (e, id: string) => managerFor(e).tm.toggleMute(id));
@@ -47,6 +51,14 @@ export function registerIpc() {
   ipcMain.handle(IPC.TabZoomOut, (e, id?: string) => managerFor(e).tm.zoomOut(id));
   ipcMain.handle(IPC.TabZoomReset, (e, id?: string) => managerFor(e).tm.zoomReset(id));
   ipcMain.handle(IPC.TabPrint, (e, id?: string) => managerFor(e).tm.print(id));
+  ipcMain.handle(IPC.TabSavePage, async (e, id?: string) => {
+    const { tm } = managerFor(e);
+    const { filePath } = await dialog.showSaveDialog({
+      defaultPath: 'page.html',
+      filters: [{ name: 'HTML page', extensions: ['html'] }],
+    });
+    return filePath ? tm.savePage(filePath, id) : false;
+  });
   ipcMain.handle(IPC.TabToggleDevTools, (e, id?: string, mode?: 'right' | 'bottom' | 'detach') =>
     managerFor(e).tm.toggleDevTools(id, mode),
   );
@@ -61,6 +73,10 @@ export function registerIpc() {
     const { tm } = managerFor(e);
     tm.setSidebarOpen(open, panel);
     tm.emitState();
+  });
+  ipcMain.handle(IPC.SetSidebarPinned, (e, pinned: boolean) => {
+    const { tm } = managerFor(e);
+    tm.setSidebarPinned(pinned);
   });
 
   ipcMain.handle(IPC.GetSuggestions, async (_e, query: string): Promise<Suggestion[]> => {
@@ -90,8 +106,10 @@ export function registerIpc() {
   });
 
   ipcMain.handle(IPC.WindowToggleFullscreen, (e) => {
-    const { win } = managerFor(e);
-    win.setFullScreen(!win.isFullScreen());
+    const { win, tm } = managerFor(e);
+    const fullscreen = !win.isFullScreen();
+    win.setFullScreen(fullscreen);
+    tm.setFullscreen(fullscreen);
   });
 
   ipcMain.handle(IPC.NewWindow, () => {
@@ -105,6 +123,26 @@ export function registerIpc() {
   ipcMain.handle(IPC.ShowAppMenu, (e, bounds: { x: number; y: number }) => {
     const { win } = managerFor(e);
     WindowManager.toggleAppMenu(win, bounds);
+  });
+
+  ipcMain.handle(IPC.ShowSuggestions, (e, bounds: { x: number; y: number; width: number }, query: string) => {
+    const { win } = managerFor(e);
+    WindowManager.showSuggestions(win, bounds, query);
+  });
+  ipcMain.handle(IPC.UpdateSuggestions, (e, query: string) => {
+    WindowManager.updateSuggestions(managerFor(e).win, query);
+  });
+  ipcMain.handle(IPC.HideSuggestions, (e) => {
+    WindowManager.closeSuggestions(managerFor(e).win);
+  });
+  ipcMain.handle(IPC.ShowDownloadPopup, (e) => {
+    WindowManager.showDownloadPopup(managerFor(e).win);
+  });
+  ipcMain.handle(IPC.ResizeDownloadPopup, (e, height: number) => {
+    WindowManager.resizeDownloadPopup(managerFor(e).win, height);
+  });
+  ipcMain.handle(IPC.HideDownloadPopup, (e) => {
+    WindowManager.closeDownloadPopup(managerFor(e).win);
   });
 
   ipcMain.handle(IPC.SetAppMenuOpen, (e, open: boolean) => {
@@ -122,6 +160,12 @@ export function registerIpc() {
     return true;
   });
 
+  ipcMain.handle(IPC.ClearCache, async (e) => {
+    const { win } = managerFor(e);
+    await win.webContents.session.clearCache();
+    return true;
+  });
+
   ipcMain.handle(IPC.AppExit, () => {
     const { app } = require('electron');
     app.quit();
@@ -136,22 +180,63 @@ export function registerIpc() {
   ipcMain.handle(IPC.BookmarkToggle, (_e, title: string, url: string) => toggleBookmark(title, url));
   ipcMain.handle(IPC.BookmarkGetByUrl, (_e, url: string) => getBookmarkByUrl(url));
 
+  ipcMain.handle(IPC.ShowBookmarkContextMenu, (e, id: number, url?: string) => {
+    const { Menu } = require('electron');
+    const { tm } = managerFor(e);
+
+    const template: any[] = [];
+    if (url) {
+      template.push({
+        label: 'Open in New Tab',
+        click: () => {
+          tm.createTab(url);
+        }
+      });
+      template.push({ type: 'separator' });
+    }
+
+    template.push({
+      label: 'Delete',
+      click: () => {
+        removeBookmark(id);
+        tm.emitState();
+      }
+    });
+
+    const menu = Menu.buildFromTemplate(template);
+    menu.popup();
+  });
+  ipcMain.handle(IPC.ShowContextMenu, (e, x: number, y: number, editable = false) => {
+    const { tm } = managerFor(e);
+    tm.showChromeContextMenu(x, y, editable);
+  });
+
   // Settings
-  ipcMain.handle(IPC.SettingsGet, () => ({
+  ipcMain.handle(IPC.SettingsGet, (_e, permissionPrefix?: string) => ({
     theme: getSetting('theme', 'system'),
+    colorTheme: getSetting('colorTheme', 'ember'),
     searchEngine: getSetting('searchEngine', 'google'),
     homepage: getSetting('homepage', 'https://www.google.com'),
-    verticalTabs: getSetting('verticalTabs', 'false') === 'true',
+    startupBehavior: getSetting('startupBehavior', 'newtab'),
     bookmarksBarVisible: getSetting('bookmarksBarVisible', 'true') === 'true',
     hibernateMinutes: Number(getSetting('hibernateMinutes', '15')),
-    accentColor: getSetting('accentColor', '#e8c06a'),
-    surfaceColor: getSetting('surfaceColor', '#1e1914'),
     glassOpacity: Number(getSetting('glassOpacity', '65')),
     glassBlur: Number(getSetting('glassBlur', '16')),
     cornerRadius: Number(getSetting('cornerRadius', '14')),
-    tintGlow: getSetting('tintGlow', 'true') === 'true',
+    devDockMode: getSetting('devDockMode', 'right'),
+    devUserAgent: getSetting('devUserAgent', 'default'),
+    sendDoNotTrack: getSetting('sendDoNotTrack', 'false') === 'true',
+    clearSiteDataOnExit: getSetting('clearSiteDataOnExit', 'false') === 'true',
+    clearHistoryOnExit: getSetting('clearHistoryOnExit', 'false') === 'true',
+    permissions: permissionPrefix ? getSettingsByPrefix(permissionPrefix) : undefined,
   }));
-  ipcMain.handle(IPC.SettingsSet, (_e, key: string, value: string) => setSetting(key, value));
+  ipcMain.handle(IPC.SettingsSet, (e, key: string, value: string) => {
+    const { tm } = managerFor(e);
+    setSetting(key, value);
+    if (key === 'startupBehavior' && value !== 'continue') setSetting('sessionTabs', '[]');
+    if (key === 'hibernateMinutes') tm.refreshHibernateTimers();
+    if (key === 'devUserAgent') tm.setUserAgent(value);
+  });
   ipcMain.handle(IPC.OpenSettings, (e, section?: string) => {
     const { tm } = managerFor(e);
     tm.openSettingsTab(section);
@@ -184,8 +269,13 @@ export function registerIpc() {
 
   // History
   ipcMain.handle(IPC.HistoryList, (_e, query: string, since: number) => listHistory(query, 500, since));
+  ipcMain.handle(IPC.HistoryRemove, (_e, id: number) => removeHistoryEntry(id));
   ipcMain.handle(IPC.HistoryClear, (_e, since: number) => clearHistory(since));
   ipcMain.handle(IPC.HistoryTerrain, (_e, hours?: number) => getHistoryTerrain(hours ?? 6));
+  ipcMain.handle(IPC.PasswordsList, () => listPasswords());
+  ipcMain.handle(IPC.PasswordSave, (_e, origin: string, username: string, password: string) => savePassword(origin, username, password));
+  ipcMain.handle(IPC.PasswordRemove, (_e, id: number) => removePassword(id));
+  ipcMain.handle(IPC.PerformanceSnapshot, (e) => managerFor(e).tm.performanceSnapshot());
 
   // Domain Groups Accordion State
   ipcMain.handle(IPC.DomainGroupsGet, () => {

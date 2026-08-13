@@ -159,7 +159,7 @@ function BookmarkFolder({ folder, allBookmarks, onContextMenu }: { folder: Bookm
       </button>
 
       {isOpen && (
-        <div className="absolute top-full left-0 mt-1 min-w-[160px] bg-[var(--color-bg-primary)] border border-white/10 rounded-md shadow-xl py-1 z-50 flex flex-col max-h-[400px] overflow-y-auto [scrollbar-width:none]">
+        <div className="absolute top-full left-0 mt-1 min-w-[160px] glass-panel border border-white/10 shadow-xl py-1 z-50 flex flex-col max-h-[400px] overflow-y-auto [scrollbar-width:none]">
           {children.length === 0 && (
             <span className="px-3 py-2 text-[var(--color-text-secondary)]/50">Empty</span>
           )}
@@ -206,7 +206,7 @@ function OverflowMenu({ overflowItems, allBookmarks, onContextMenu }: { overflow
       </button>
 
       {isOpen && (
-        <div className="absolute top-full right-0 mt-1 min-w-[160px] bg-[var(--color-bg-primary)] border border-white/10 rounded-md shadow-xl py-1 z-50 flex flex-col max-h-[400px] overflow-y-auto [scrollbar-width:none]">
+        <div className="absolute top-full right-0 mt-1 min-w-[160px] glass-panel border border-white/10 shadow-xl py-1 z-50 flex flex-col max-h-[400px] overflow-y-auto [scrollbar-width:none]">
           {overflowItems.map((b) => (
             b.isFolder ? (
               <div key={b.id} className="px-1">

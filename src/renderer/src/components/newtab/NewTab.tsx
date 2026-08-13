@@ -108,9 +108,9 @@ export function NewTab() {
   }, []);
 
   return (
-    <div className="h-full w-full flex flex-col items-center justify-center select-none overflow-auto"
+    <div className="newtab-page h-full w-full flex flex-col items-center justify-center select-none overflow-auto"
       style={{
-        background: 'linear-gradient(145deg, #0f0d0b 0%, #1a1714 30%, #151210 70%, #0d0b09 100%)',
+        background: 'var(--newtab-bg)',
       }}
     >
       {/* ── Clock & Greeting ── */}

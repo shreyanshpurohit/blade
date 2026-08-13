@@ -1,23 +1,24 @@
 import { create } from 'zustand';
 import type { WindowState, TabState, SidebarPanel, DownloadItem } from '@shared/types';
 import { api } from '../lib/api';
-import { applyCustomizationStyles, DEFAULT_CUSTOMIZATION } from '../lib/theme';
+import { applyCustomizationStyles, DEFAULT_CUSTOMIZATION, type ColorTheme } from '../lib/theme';
 
 export interface AppSettings {
   theme: 'light' | 'dark' | 'system';
+  colorTheme: ColorTheme;
   searchEngine: string;
   homepage: string;
-  verticalTabs: boolean;
+  startupBehavior: 'newtab' | 'continue';
   bookmarksBarVisible: boolean;
   hibernateMinutes: number;
-  accentColor: string;
-  surfaceColor: string;
   glassOpacity: number;
   glassBlur: number;
   cornerRadius: number;
-  tintGlow: boolean;
   devDockMode: 'right' | 'bottom' | 'detach';
   devUserAgent: string;
+  sendDoNotTrack: boolean;
+  clearSiteDataOnExit: boolean;
+  clearHistoryOnExit: boolean;
 }
 
 interface BrowserStore extends WindowState {
@@ -27,12 +28,10 @@ interface BrowserStore extends WindowState {
   activeBookmarked: boolean;
 
   // Customization state
-  accentColor: string;
-  surfaceColor: string;
   glassOpacity: number;
   glassBlur: number;
   cornerRadius: number;
-  tintGlow: boolean;
+  colorTheme: ColorTheme;
 
   init: () => Promise<void>;
   applyState: (s: WindowState) => void;
@@ -55,11 +54,15 @@ interface BrowserStore extends WindowState {
   toggleBookmarkActive: () => Promise<void>;
 
   setSidebar: (open: boolean, panel?: SidebarPanel) => void;
+  setSidebarPinned: (pinned: boolean) => void;
   openSettings: (section?: string) => void;
   setTheme: (t: 'light' | 'dark' | 'system') => void;
   setBookmarksBarVisible: (v: boolean) => void;
   setAppMenuOpen: (open: boolean) => void;
   toggleAppMenu: () => void;
+  downloadPopupOpen: boolean;
+  setDownloadPopupOpen: (open: boolean) => void;
+  toggleDownloadPopup: () => void;
 
   zoomIn: () => void;
   zoomOut: () => void;
@@ -67,6 +70,7 @@ interface BrowserStore extends WindowState {
   setZoom: (factor: number) => void;
   toggleFullscreen: () => void;
   print: () => void;
+  savePage: () => void;
   toggleDevTools: (mode?: 'right' | 'bottom' | 'detach') => void;
   viewSource: () => void;
   newWindow: () => void;
@@ -77,9 +81,6 @@ interface BrowserStore extends WindowState {
   activeTab: () => TabState | undefined;
 }
 
-const CHROME_BASE = 92;
-const BOOKMARKS_BAR = 36;
-
 export const useBrowserStore = create<BrowserStore>((set, get) => ({
   windowId: 0,
   incognito: false,
@@ -87,86 +88,76 @@ export const useBrowserStore = create<BrowserStore>((set, get) => ({
   groups: [],
   activeTabId: null,
   sidebarOpen: false,
+  sidebarPinned: false,
   sidebarPanel: 'shields',
   appMenuOpen: false,
-  verticalTabs: false,
   bookmarksBarVisible: true,
+  fullscreen: false,
   theme: 'system',
+  colorTheme: DEFAULT_CUSTOMIZATION.colorTheme,
   downloads: [],
+  downloadPopupOpen: false,
   initialized: false,
   activeBookmarked: false,
 
-  // Customization defaults
-  accentColor: DEFAULT_CUSTOMIZATION.accentColor,
-  surfaceColor: DEFAULT_CUSTOMIZATION.surfaceColor,
+  // Shared glass-theme defaults
   glassOpacity: DEFAULT_CUSTOMIZATION.glassOpacity,
   glassBlur: DEFAULT_CUSTOMIZATION.glassBlur,
   cornerRadius: DEFAULT_CUSTOMIZATION.cornerRadius,
-  tintGlow: DEFAULT_CUSTOMIZATION.tintGlow,
 
   init: async () => {
     if (get().initialized) return;
     const state = (await api.app.getState()) as WindowState;
-    set({ ...state, initialized: true });
+    const downloads = (await api.downloads.list()) as DownloadItem[];
+    set({ ...state, downloads, initialized: true });
     await get().refreshSettings();
 
     api.onStateChanged((s) => get().applyState(s as WindowState));
     api.onDownloadsChanged((list) => set({ downloads: list as DownloadItem[] }));
+    api.onDownloadPopupClosed(() => set({ downloadPopupOpen: false }));
     api.onMenu((action) => handleMenuAction(action, get()));
   },
 
   refreshSettings: async () => {
     const s = (await api.settings.get()) as AppSettings;
-    const accentColor = s.accentColor || DEFAULT_CUSTOMIZATION.accentColor;
-    const surfaceColor = s.surfaceColor || DEFAULT_CUSTOMIZATION.surfaceColor;
     const glassOpacity = s.glassOpacity !== undefined && !isNaN(Number(s.glassOpacity)) ? Number(s.glassOpacity) : DEFAULT_CUSTOMIZATION.glassOpacity;
     const glassBlur = s.glassBlur !== undefined && !isNaN(Number(s.glassBlur)) ? Number(s.glassBlur) : DEFAULT_CUSTOMIZATION.glassBlur;
     const cornerRadius = s.cornerRadius !== undefined && !isNaN(Number(s.cornerRadius)) ? Number(s.cornerRadius) : DEFAULT_CUSTOMIZATION.cornerRadius;
-    const tintGlow = s.tintGlow !== undefined ? (String(s.tintGlow) === 'true' || s.tintGlow === true) : DEFAULT_CUSTOMIZATION.tintGlow;
-    const verticalTabs = s.verticalTabs !== undefined ? String(s.verticalTabs) === 'true' : false;
+    const colorTheme = (s.colorTheme || DEFAULT_CUSTOMIZATION.colorTheme) as ColorTheme;
     const bookmarksBarVisible = s.bookmarksBarVisible !== undefined ? String(s.bookmarksBarVisible) === 'true' : true;
 
     set({
       theme: s.theme || 'system',
-      verticalTabs,
+      colorTheme,
       bookmarksBarVisible,
-      accentColor,
-      surfaceColor,
       glassOpacity,
       glassBlur,
       cornerRadius,
-      tintGlow,
     });
 
     applyCustomizationStyles({
-      accentColor,
-      surfaceColor,
+      theme: s.theme || 'system',
+      colorTheme,
       glassOpacity,
       glassBlur,
       cornerRadius,
-      tintGlow,
     });
 
-    syncChromeHeight(s.bookmarksBarVisible);
   },
 
   updateSetting: (key, value) => {
     void api.settings.set(key, String(value));
-    if (key === 'theme') set({ theme: value as AppSettings['theme'] });
-    if (key === 'verticalTabs') set({ verticalTabs: value as boolean });
+    if (key === 'theme') {
+      set({ theme: value as AppSettings['theme'] });
+      applyCustomizationStyles({ ...get(), theme: value as AppSettings['theme'] });
+    }
+    if (key === 'colorTheme') {
+      const colorTheme = value as ColorTheme;
+      set({ colorTheme });
+      applyCustomizationStyles({ ...get(), colorTheme });
+    }
     if (key === 'bookmarksBarVisible') {
       set({ bookmarksBarVisible: value as boolean });
-      syncChromeHeight(value as boolean);
-    }
-    if (key === 'accentColor') {
-      const color = String(value);
-      set({ accentColor: color });
-      applyCustomizationStyles({ ...get(), accentColor: color });
-    }
-    if (key === 'surfaceColor') {
-      const color = String(value);
-      set({ surfaceColor: color });
-      applyCustomizationStyles({ ...get(), surfaceColor: color });
     }
     if (key === 'glassOpacity') {
       const opacity = Number(value);
@@ -183,26 +174,26 @@ export const useBrowserStore = create<BrowserStore>((set, get) => ({
       set({ cornerRadius: radius });
       applyCustomizationStyles({ ...get(), cornerRadius: radius });
     }
-    if (key === 'tintGlow') {
-      const glow = Boolean(value);
-      set({ tintGlow: glow });
-      applyCustomizationStyles({ ...get(), tintGlow: glow });
-    }
   },
 
   resetCustomization: () => {
     const { updateSetting } = get();
-    updateSetting('accentColor', DEFAULT_CUSTOMIZATION.accentColor);
-    updateSetting('surfaceColor', DEFAULT_CUSTOMIZATION.surfaceColor);
     updateSetting('glassOpacity', DEFAULT_CUSTOMIZATION.glassOpacity);
     updateSetting('glassBlur', DEFAULT_CUSTOMIZATION.glassBlur);
     updateSetting('cornerRadius', DEFAULT_CUSTOMIZATION.cornerRadius);
-    updateSetting('tintGlow', DEFAULT_CUSTOMIZATION.tintGlow);
     updateSetting('theme', DEFAULT_CUSTOMIZATION.theme);
+    updateSetting('colorTheme', DEFAULT_CUSTOMIZATION.colorTheme);
   },
 
   applyState: (s) => {
     set((prev) => ({ ...prev, ...s }));
+    if (s.theme || s.colorTheme) {
+      applyCustomizationStyles({
+        ...get(),
+        theme: s.theme ?? get().theme,
+        colorTheme: s.colorTheme ?? get().colorTheme,
+      });
+    }
     // Re-check bookmark state for the now-active URL
     const url = s.tabs.find((t) => t.id === s.activeTabId)?.url;
     if (url && url.startsWith('http')) {
@@ -254,17 +245,20 @@ export const useBrowserStore = create<BrowserStore>((set, get) => ({
     set({ sidebarOpen: open, sidebarPanel: nextPanel });
     void api.app.setSidebar(open, nextPanel);
   },
+  setSidebarPinned: (pinned) => {
+    set({ sidebarPinned: pinned, sidebarOpen: true });
+    void api.app.setSidebarPinned(pinned);
+  },
   openSettings: (section?: string) => {
     void api.app.openSettings(section);
   },
   setTheme: (t) => {
     set({ theme: t });
-    void api.settings.set('theme', t);
+    get().updateSetting('theme', t);
   },
   setBookmarksBarVisible: (v) => {
     set({ bookmarksBarVisible: v });
     void api.settings.set('bookmarksBarVisible', String(v));
-    syncChromeHeight(v);
   },
 
   setAppMenuOpen: (open) => {
@@ -276,6 +270,8 @@ export const useBrowserStore = create<BrowserStore>((set, get) => ({
     set({ appMenuOpen: next });
     void api.app.setAppMenuOpen(next);
   },
+  setDownloadPopupOpen: (open) => set({ downloadPopupOpen: open }),
+  toggleDownloadPopup: () => set((state) => ({ downloadPopupOpen: !state.downloadPopupOpen })),
 
   zoomIn: () => {
     const id = get().activeTabId;
@@ -297,6 +293,10 @@ export const useBrowserStore = create<BrowserStore>((set, get) => ({
   print: () => {
     const id = get().activeTabId;
     if (id) void api.tabs.print(id);
+  },
+  savePage: () => {
+    const id = get().activeTabId;
+    if (id) void api.tabs.savePage(id);
   },
   toggleDevTools: (mode = 'right') => {
     const id = get().activeTabId;
@@ -338,16 +338,13 @@ function handleMenuAction(action: string, s: BrowserStore) {
       if (query) void api.tabs.find(query);
       break;
     }
+    case 'menu:savePage': s.savePage(); break;
     case 'menu:openBookmarks': s.setSidebar(true, 'bookmarks'); break;
     case 'menu:openHistory': s.setSidebar(true, 'history'); break;
-    case 'menu:openDownloads': s.setSidebar(true, 'downloads'); break;
+    case 'menu:openDownloads': s.openSettings('downloads'); break;
   }
 }
 
 function set(partial: Partial<BrowserStore>) {
   useBrowserStore.setState(partial);
-}
-
-function syncChromeHeight(bookmarksBarVisible: boolean) {
-  void api.app.setChromeHeight(CHROME_BASE + (bookmarksBarVisible ? BOOKMARKS_BAR : 0));
 }

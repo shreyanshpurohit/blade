@@ -11,7 +11,7 @@ interface AppMenuProps {
   customPos?: { x: number; y: number };
 }
 
-type SubmenuId = 'passwords' | 'history' | 'bookmarks' | 'extensions' | 'save_share' | 'more_tools' | 'help' | null;
+type SubmenuId = 'history' | 'bookmarks' | 'save_share' | 'more_tools' | 'help' | null;
 
 export function AppMenu({ isOpen, onClose, anchorRef, standalone = false, customPos }: AppMenuProps) {
   const {
@@ -20,15 +20,14 @@ export function AppMenu({ isOpen, onClose, anchorRef, standalone = false, custom
     newWindow,
     newIncognitoWindow,
     sidebarOpen,
-    sidebarPanel,
     setSidebar,
     bookmarksBarVisible,
     setBookmarksBarVisible,
     zoomIn,
     zoomOut,
-    zoomReset,
     toggleFullscreen,
     print,
+    savePage,
     toggleDevTools,
     viewSource,
     openSettings,
@@ -104,8 +103,8 @@ export function AppMenu({ isOpen, onClose, anchorRef, standalone = false, custom
       ref={menuRef}
       className={
         standalone
-          ? "absolute glass-panel backdrop-blur-2xl border border-white/[0.12] rounded-2xl p-2 text-white select-none overflow-hidden flex flex-col"
-          : "absolute right-6 top-14 z-50 w-[295px] glass-panel backdrop-blur-2xl border border-white/[0.12] rounded-2xl p-2 shadow-2xl text-white select-none animate-menu-in flex flex-col"
+          ? "absolute app-menu-surface backdrop-blur-2xl border border-white/[0.12] rounded-2xl p-2 text-white select-none flex flex-col"
+          : "absolute right-6 top-14 z-50 w-[295px] app-menu-surface backdrop-blur-2xl border border-white/[0.12] rounded-2xl p-2 shadow-2xl text-white select-none animate-menu-in flex flex-col"
       }
       style={
         standalone && customPos
@@ -113,7 +112,6 @@ export function AppMenu({ isOpen, onClose, anchorRef, standalone = false, custom
               top: `${Math.max(0, customPos.y + 4)}px`,
               left: `${Math.max(0, customPos.x - 310)}px`,
               width: '310px',
-              height: '660px',
             }
           : undefined
       }
@@ -138,41 +136,21 @@ export function AppMenu({ isOpen, onClose, anchorRef, standalone = false, custom
         shortcut="Ctrl+Shift+N"
         onClick={() => handleAction(() => newIncognitoWindow())}
       />
-      <MenuItem
-        icon="bolt"
-        label="New private window with Tor"
-        shortcut="Shift+Alt+N"
-        onClick={() => handleAction(() => newIncognitoWindow())}
-      />
 
       <Divider />
 
-      {/* 2. AI & Shields */}
-      <MenuItem
-        icon="sparkles"
-        label="Leo AI Assistant"
-        onClick={() => handleAction(() => setSidebar(true, 'ai'))}
-      />
-      <MenuItem
-        icon="wallet"
-        label="Lumen Wallet"
-        onClick={() => handleAction(() => setSidebar(true, 'shields'))}
-      />
-
-      <Divider />
-
-      {/* 3. Sidebar Toggle with Pills */}
+      {/* 2. Sidebar Toggle with Pills */}
       <div className="px-3 py-2 flex items-center justify-between text-[13px] rounded-lg hover:bg-white/5 transition-colors">
         <div className="flex items-center gap-2.5">
           <Icon name="sidebar" size={15} className="text-white/50" />
           <span className="font-medium text-white">Sidebar</span>
         </div>
-        <div className="flex items-center bg-black/40 p-0.5 rounded-lg border border-white/[0.12] text-[11px] font-medium">
+        <div className="flex items-center bg-[var(--glass-control-bg)] p-0.5 rounded-lg border border-white/[0.12] text-[11px] font-medium">
           <button
             onClick={() => setSidebar(true)}
             className={`px-2 py-0.5 rounded-md transition-all ${
               sidebarOpen
-                ? 'bg-white text-black shadow-sm font-semibold'
+                ? 'bg-[var(--theme-primary)] text-[var(--color-surface-solid)] shadow-sm font-semibold'
                 : 'text-white/50 hover:text-white'
             }`}
           >
@@ -191,31 +169,7 @@ export function AppMenu({ isOpen, onClose, anchorRef, standalone = false, custom
         </div>
       </div>
 
-      {/* 4. Navigation & Tool Submenus */}
-      <MenuItemWithSubmenu
-        id="passwords"
-        activeSubmenu={activeSubmenu}
-        setActiveSubmenu={setActiveSubmenu}
-        icon="key"
-        label="Passwords and autofill"
-      >
-        <MenuItem
-          icon="key"
-          label="Password Manager"
-          onClick={() => handleAction(() => openSettings())}
-        />
-        <MenuItem
-          icon="check"
-          label="Payment methods"
-          onClick={() => handleAction(() => openSettings())}
-        />
-        <MenuItem
-          icon="doc"
-          label="Addresses and more"
-          onClick={() => handleAction(() => openSettings())}
-        />
-      </MenuItemWithSubmenu>
-
+      {/* 3. Navigation & Tool Submenus */}
       <MenuItemWithSubmenu
         id="history"
         activeSubmenu={activeSubmenu}
@@ -229,11 +183,6 @@ export function AppMenu({ isOpen, onClose, anchorRef, standalone = false, custom
           label="History Manager"
           shortcut="Ctrl+H"
           onClick={() => handleAction(() => setSidebar(true, 'history'))}
-        />
-        <MenuItem
-          icon="arrow-clockwise"
-          label="Recently Closed Tabs"
-          onClick={() => handleAction(() => createTab())}
         />
         <MenuItem
           icon="trash"
@@ -273,27 +222,8 @@ export function AppMenu({ isOpen, onClose, anchorRef, standalone = false, custom
         icon="download"
         label="Downloads"
         shortcut="Ctrl+J"
-        onClick={() => handleAction(() => setSidebar(true, 'downloads'))}
+        onClick={() => handleAction(() => openSettings('downloads'))}
       />
-
-      <MenuItemWithSubmenu
-        id="extensions"
-        activeSubmenu={activeSubmenu}
-        setActiveSubmenu={setActiveSubmenu}
-        icon="puzzle"
-        label="Extensions"
-      >
-        <MenuItem
-          icon="puzzle"
-          label="Manage extensions"
-          onClick={() => handleAction(() => setSidebar(true, 'extensions'))}
-        />
-        <MenuItem
-          icon="external"
-          label="Chrome Web Store"
-          onClick={() => handleAction(() => createTab('https://chromewebstore.google.com'))}
-        />
-      </MenuItemWithSubmenu>
 
       <MenuItem
         icon="trash"
@@ -310,7 +240,7 @@ export function AppMenu({ isOpen, onClose, anchorRef, standalone = false, custom
           <Icon name="search" size={15} className="text-white/50" />
           <span className="font-medium text-white">Zoom</span>
         </div>
-        <div className="flex items-center gap-1.5 bg-black/40 px-1 py-0.5 rounded-lg border border-white/[0.12]">
+        <div className="flex items-center gap-1.5 bg-[var(--glass-control-bg)] px-1 py-0.5 rounded-lg border border-white/[0.12]">
           <button
             title="Zoom out (Ctrl -)"
             onClick={(e) => {
@@ -321,16 +251,12 @@ export function AppMenu({ isOpen, onClose, anchorRef, standalone = false, custom
           >
             <Icon name="minus" size={13} />
           </button>
-          <button
-            title="Click to reset zoom (Ctrl 0)"
-            onClick={(e) => {
-              e.stopPropagation();
-              zoomReset();
-            }}
-            className="min-w-[44px] px-1 h-6 grid place-items-center rounded text-[12px] font-semibold text-white hover:bg-white/10 hover:text-white transition-colors"
+          <span
+            aria-label={`Current zoom ${zoomPct}%`}
+            className="min-w-[50px] px-1 h-6 grid place-items-center rounded text-center text-[12px] font-semibold text-white"
           >
             {zoomPct}%
-          </button>
+          </span>
           <button
             title="Zoom in (Ctrl +)"
             onClick={(e) => {
@@ -384,7 +310,7 @@ export function AppMenu({ isOpen, onClose, anchorRef, standalone = false, custom
           icon="doc"
           label="Save page as..."
           shortcut="Ctrl+S"
-          onClick={() => handleAction(() => print())}
+          onClick={() => handleAction(() => savePage())}
         />
       </MenuItemWithSubmenu>
 
@@ -447,7 +373,7 @@ export function AppMenu({ isOpen, onClose, anchorRef, standalone = false, custom
       </MenuItemWithSubmenu>
 
       <MenuItem
-        icon="sliders"
+        icon="gear"
         label="Settings"
         shortcut="Ctrl+,"
         onClick={() => handleAction(() => openSettings())}
@@ -543,8 +469,10 @@ function MenuItemWithSubmenu({
 
       {isOpen && (
         <div
-          className="absolute right-[calc(100%+6px)] top-0 z-50 w-[240px] glass-panel backdrop-blur-2xl border border-white/[0.12] rounded-2xl p-2 shadow-2xl text-white animate-menu-in"
+          className="absolute right-[calc(100%+6px)] top-0 z-50 w-[240px] app-menu-surface backdrop-blur-2xl border border-white/[0.12] rounded-2xl p-2 shadow-2xl text-white animate-menu-in"
         >
+          {/* Bridge gap so hover doesn't drop */}
+          <div className="absolute -right-[12px] top-0 bottom-0 w-[12px] bg-transparent" />
           {children}
         </div>
       )}

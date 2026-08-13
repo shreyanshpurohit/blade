@@ -1,228 +1,250 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { api } from '../../lib/api';
 import { AppSettings, useBrowserStore } from '../../store/browserStore';
 import { Icon, IconName } from '../common/Icon';
-import {
-  ACCENT_PRESETS,
-  SURFACE_PRESETS,
-  DEFAULT_CUSTOMIZATION,
-} from '../../lib/theme';
-
-/* ══════════════════════════════════════════════════════════════
- *  Constants & Data
- * ══════════════════════════════════════════════════════════════ */
+import { COLOR_THEMES, DEFAULT_CUSTOMIZATION, type ColorTheme } from '../../lib/theme';
+import type { HistoryEntry, StoredPassword } from '@shared/types';
 
 const SEARCH_ENGINES = [
-  { id: 'google', label: 'Google', hint: 'google.com', description: "The world's most popular search engine" },
-  { id: 'duckduckgo', label: 'DuckDuckGo', hint: 'duckduckgo.com', description: 'Privacy-focused, zero tracking or profiling' },
-  { id: 'bing', label: 'Bing', hint: 'bing.com', description: 'Microsoft AI and web search index' },
-  { id: 'brave', label: 'Brave Search', hint: 'search.brave.com', description: 'Independent, private web index' },
+  { id: 'google', label: 'Google', description: "The world's most popular search engine" },
+  { id: 'duckduckgo', label: 'DuckDuckGo', description: 'Privacy-focused, zero tracking or profiling' },
+  { id: 'bing', label: 'Bing', description: 'Microsoft AI and web search index' },
+  { id: 'brave', label: 'Brave Search', description: 'Independent, private web index' },
 ];
 
-const SECTIONS: { id: string; label: string; icon: IconName; badge?: string }[] = [
+const HOMEPAGES = [
+  { label: 'New Tab Page', value: 'lumen://newtab', description: 'Lumen internal page' },
+  { label: 'Google', value: 'https://www.google.com', description: 'google.com' },
+  { label: 'DuckDuckGo', value: 'https://duckduckgo.com', description: 'duckduckgo.com' },
+  { label: 'YouTube', value: 'https://www.youtube.com', description: 'youtube.com' },
+  { label: 'GitHub', value: 'https://github.com', description: 'github.com' },
+  { label: 'Reddit', value: 'https://www.reddit.com', description: 'reddit.com' },
+];
+
+const USER_AGENT_PRESETS = [
+  { id: 'default', label: 'Default (Chromium)' },
+  { id: 'safari-mac', label: 'Safari · macOS' },
+  { id: 'chrome-win', label: 'Chrome · Windows 11' },
+  { id: 'firefox-linux', label: 'Firefox · Linux' },
+  { id: 'iphone-ios', label: 'Mobile · iPhone iOS 17' },
+];
+
+const SECTIONS: { id: string; label: string; icon: IconName }[] = [
   { id: 'general', label: 'General', icon: 'home' },
-  { id: 'appearance', label: 'Appearance & Style', icon: 'palette' },
+  { id: 'appearance', label: 'Appearance', icon: 'palette' },
   { id: 'search', label: 'Search Engine', icon: 'search' },
   { id: 'tabs', label: 'Tabs & Windows', icon: 'layers' },
   { id: 'performance', label: 'Performance', icon: 'bolt' },
   { id: 'shields', label: 'Lumen Shields', icon: 'shield-check' },
   { id: 'privacy', label: 'Privacy & Data', icon: 'lock' },
-  { id: 'developer', label: 'Developer & Tools', icon: 'terminal', badge: 'Dev' },
+  { id: 'history', label: 'History', icon: 'clock' },
+  { id: 'downloads', label: 'Downloads', icon: 'download' },
+  { id: 'passwords', label: 'Password Manager', icon: 'key' },
+  { id: 'permissions', label: 'Site Permissions', icon: 'shield' },
+  { id: 'developer', label: 'Developer & Tools', icon: 'terminal' },
   { id: 'shortcuts', label: 'Shortcuts', icon: 'keyboard' },
   { id: 'about', label: 'About Lumen', icon: 'sparkles' },
 ];
 
-const USER_AGENT_PRESETS = [
-  { id: 'default', label: 'Default (Chromium)', value: '' },
-  {
-    id: 'safari-mac',
-    label: 'Safari · macOS',
-    value: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15',
-  },
-  {
-    id: 'chrome-win',
-    label: 'Chrome · Windows 11',
-    value: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-  },
-  {
-    id: 'firefox-linux',
-    label: 'Firefox · Linux',
-    value: 'Mozilla/5.0 (X11; Linux x86_64; rv:125.0) Gecko/20100101 Firefox/125.0',
-  },
-  {
-    id: 'iphone-ios',
-    label: 'Mobile · iPhone iOS 17',
-    value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
-  },
-];
-
-const SHORTCUT_GROUPS: { category: string; items: { keys: string; action: string }[] }[] = [
+const SHORTCUT_GROUPS = [
   {
     category: 'Tabs & Navigation',
     items: [
-      { keys: 'Ctrl + T', action: 'Open new tab' },
-      { keys: 'Ctrl + W', action: 'Close current tab' },
-      { keys: 'Ctrl + Shift + T', action: 'Reopen last closed tab' },
-      { keys: 'Ctrl + R', action: 'Reload tab' },
-      { keys: 'Ctrl + Shift + R', action: 'Hard reload tab (bypass cache)' },
-      { keys: 'Alt + ← / →', action: 'Navigate back / forward' },
-      { keys: 'Ctrl + 1-8', action: 'Jump to tab 1 through 8' },
-      { keys: 'Ctrl + 9', action: 'Jump to last tab' },
+      ['Ctrl + T', 'Open new tab'],
+      ['Ctrl + W', 'Close current tab'],
+      ['Ctrl + Shift + T', 'Reopen last closed tab'],
+      ['Ctrl + R', 'Reload tab'],
+      ['Ctrl + Shift + R', 'Hard reload tab'],
+      ['Ctrl + 1-8', 'Jump to a tab'],
+      ['Ctrl + 9', 'Jump to the last tab'],
     ],
   },
   {
     category: 'Browser Interface',
     items: [
-      { keys: 'Ctrl + L', action: 'Focus address bar (Omnibox)' },
-      { keys: 'Ctrl + ,', action: 'Open settings' },
-      { keys: 'Ctrl + Shift + B', action: 'Toggle bookmarks bar' },
-      { keys: 'Ctrl + F', action: 'Find text on page' },
-      { keys: 'F11', action: 'Toggle fullscreen window' },
-      { keys: 'Ctrl + + / - / 0', action: 'Zoom in, out, and reset' },
+      ['Ctrl + L', 'Focus address bar'],
+      ['Ctrl + ,', 'Open settings'],
+      ['Ctrl + Shift + B', 'Toggle bookmarks bar'],
+      ['Ctrl + F', 'Find text on page'],
+      ['F11', 'Toggle fullscreen'],
+      ['Ctrl + + / - / 0', 'Zoom in, out, and reset'],
     ],
   },
   {
-    category: 'Developer & Inspection',
+    category: 'Developer & Windows',
     items: [
-      { keys: 'Ctrl + Shift + I', action: 'Toggle Developer Tools' },
-      { keys: 'Ctrl + Shift + J', action: 'Open JavaScript Console' },
-      { keys: 'Ctrl + U', action: 'View HTML page source' },
-    ],
-  },
-  {
-    category: 'Privacy & Windows',
-    items: [
-      { keys: 'Ctrl + N', action: 'Open new browser window' },
-      { keys: 'Ctrl + Shift + N', action: 'Open new private (Incognito) window' },
-      { keys: 'Ctrl + Shift + Del', action: 'Clear local browsing history' },
+      ['Ctrl + Shift + I', 'Toggle Developer Tools'],
+      ['Ctrl + Shift + J', 'Open JavaScript Console'],
+      ['Ctrl + U', 'View page source'],
+      ['Ctrl + N', 'Open new browser window'],
+      ['Ctrl + Shift + N', 'Open private window'],
+      ['Ctrl + Shift + Del', 'Clear browsing data'],
     ],
   },
 ];
 
-/* ══════════════════════════════════════════════════════════════
- *  Main Component
- * ══════════════════════════════════════════════════════════════ */
+interface ShieldsConfig {
+  enabled: boolean;
+  adBlockEnabled: boolean;
+  trackerBlockEnabled: boolean;
+  httpsUpgrade: boolean;
+}
+
+interface ShieldsStats {
+  adsBlocked: number;
+  trackersBlocked: number;
+  httpsUpgrades: number;
+}
+
+interface PerformanceSnapshot {
+  memoryMb: number;
+  cpuPercent: number;
+  processCount: number;
+  tabCount: number;
+  activeTabCpuPercent: number;
+}
 
 export function SettingsPage({ url }: { url?: string }) {
-  const storeAccentColor = useBrowserStore((s) => s.accentColor);
-  const storeSurfaceColor = useBrowserStore((s) => s.surfaceColor);
   const storeTheme = useBrowserStore((s) => s.theme);
   const updateSetting = useBrowserStore((s) => s.updateSetting);
-
   const [settings, setSettings] = useState<AppSettings | null>(null);
-  const [shieldsConfig, setShieldsConfig] = useState<any>(null);
-  const [shieldsStats, setShieldsStats] = useState<any>(null);
+  const [shieldsConfig, setShieldsConfig] = useState<ShieldsConfig | null>(null);
+  const [shieldsStats, setShieldsStats] = useState<ShieldsStats | null>(null);
   const [section, setSection] = useState('general');
-  const [cleared, setCleared] = useState(false);
-  const [gpuCacheCleared, setGpuCacheCleared] = useState(false);
   const [searchFilter, setSearchFilter] = useState('');
-
-  // Developer settings — derived from persisted settings
-  const devDockMode = (settings?.devDockMode ?? 'right') as 'right' | 'bottom' | 'detach';
-  const devSelectedUa = settings?.devUserAgent ?? 'default';
-  const [devHardwareAccel, setDevHardwareAccel] = useState(true);
-  const [devSmoothScroll, setDevSmoothScroll] = useState(true);
-
-  const currentAccent = settings?.accentColor || storeAccentColor || DEFAULT_CUSTOMIZATION.accentColor;
-  const currentSurface = settings?.surfaceColor || storeSurfaceColor || DEFAULT_CUSTOMIZATION.surfaceColor;
+  const [status, setStatus] = useState('');
+  const activeTab = useBrowserStore((state) => state.activeTab());
+  const downloads = useBrowserStore((state) => state.downloads);
+  const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]);
+  const [historyQuery, setHistoryQuery] = useState('');
+  const [passwords, setPasswords] = useState<StoredPassword[]>([]);
+  const [passwordForm, setPasswordForm] = useState({ origin: '', username: '', password: '' });
+  const [performance, setPerformance] = useState<PerformanceSnapshot | null>(null);
+  const [permissionValues, setPermissionValues] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    void api.settings.get().then((s) => setSettings(s as AppSettings));
-    void api.shields.getConfig().then((c) => setShieldsConfig(c));
-    void api.shields.getStats().then((s) => setShieldsStats(s));
+    void api.settings.get().then((value) => setSettings(value as AppSettings));
+    void api.shields.getConfig().then((value) => setShieldsConfig(value as ShieldsConfig));
+    void api.shields.getStats().then((value) => setShieldsStats(value as ShieldsStats));
   }, []);
 
-  // Hash / URL Section selection sync
   useEffect(() => {
-    if (url && url.includes('#')) {
-      const hash = url.split('#')[1];
-      if (hash && SECTIONS.some((s) => s.id === hash)) {
-        setSection(hash);
-      }
-    } else if (window.location.hash) {
-      const hash = window.location.hash.replace('#', '').replace('/', '');
-      if (hash && SECTIONS.some((s) => s.id === hash)) {
-        setSection(hash);
-      }
-    }
+    if (section === 'history') void api.history.list(historyQuery, 0).then((value) => setHistoryEntries(value as HistoryEntry[]));
+    if (section === 'passwords') void api.passwords.list().then((value) => setPasswords(value as StoredPassword[]));
+  }, [section, historyQuery]);
+
+  useEffect(() => {
+    if (section !== 'performance') return;
+    let cancelled = false;
+    const refresh = async () => {
+      const value = await api.performance.snapshot() as PerformanceSnapshot;
+      if (!cancelled) setPerformance(value);
+    };
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 1000);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [section]);
+
+  const activeOrigin = (() => {
+    try { return activeTab?.url ? new URL(activeTab.url).origin : ''; } catch { return ''; }
+  })();
+
+  useEffect(() => {
+    if (!activeOrigin) return;
+    const permissions = ['notifications', 'geolocation', 'camera', 'microphone'];
+    void api.settings.get(`permission:${activeOrigin}:`).then((value) => {
+      const stored = (value as { permissions?: Record<string, string> }).permissions ?? {};
+      setPermissionValues((current) => {
+        const next = { ...current };
+        for (const permission of permissions) next[permission] = stored[permission] ?? next[permission] ?? 'ask';
+        return next;
+      });
+    });
+    setPermissionValues((current) => {
+      const next = { ...current };
+      for (const permission of permissions) next[permission] ??= 'ask';
+      return next;
+    });
+  }, [activeOrigin]);
+
+  useEffect(() => {
+    const hash = url?.includes('#')
+      ? url.split('#')[1]
+      : window.location.hash.replace(/^#\/?/, '');
+    if (hash && SECTIONS.some((item) => item.id === hash)) setSection(hash);
   }, [url]);
 
   const set = <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => {
-    setSettings((s) => (s ? { ...s, [key]: value } : s));
+    setSettings((current) => (current ? { ...current, [key]: value } : current));
     updateSetting(key, value);
   };
 
-  const handleResetCustomization = () => {
+  const resetTheme = () => {
     useBrowserStore.getState().resetCustomization();
-    setSettings((s) =>
-      s
-        ? {
-            ...s,
-            accentColor: DEFAULT_CUSTOMIZATION.accentColor,
-            surfaceColor: DEFAULT_CUSTOMIZATION.surfaceColor,
-            glassOpacity: DEFAULT_CUSTOMIZATION.glassOpacity,
-            glassBlur: DEFAULT_CUSTOMIZATION.glassBlur,
-            cornerRadius: DEFAULT_CUSTOMIZATION.cornerRadius,
-            tintGlow: DEFAULT_CUSTOMIZATION.tintGlow,
-            theme: DEFAULT_CUSTOMIZATION.theme,
-          }
-        : s,
-    );
+    setSettings((current) => current ? {
+      ...current,
+      glassOpacity: DEFAULT_CUSTOMIZATION.glassOpacity,
+      glassBlur: DEFAULT_CUSTOMIZATION.glassBlur,
+      cornerRadius: DEFAULT_CUSTOMIZATION.cornerRadius,
+      theme: DEFAULT_CUSTOMIZATION.theme,
+      colorTheme: DEFAULT_CUSTOMIZATION.colorTheme,
+    } : current);
+    showStatus('Theme reset');
+  };
+
+  const showStatus = (message: string) => {
+    setStatus(message);
+    window.setTimeout(() => setStatus(''), 2200);
   };
 
   const setShield = (key: string, value: string) => {
     void api.shields.setConfig(key, value);
-    setShieldsConfig((prev: any) => {
-      if (!prev) return prev;
-      const mapping: Record<string, string> = {
+    setShieldsConfig((current) => {
+      if (!current) return current;
+      const mapping: Record<string, keyof ShieldsConfig> = {
         enabled: 'enabled',
         adBlock: 'adBlockEnabled',
         trackerBlock: 'trackerBlockEnabled',
         httpsUpgrade: 'httpsUpgrade',
-        fingerprint: 'fingerprintProtection',
-        cookies: 'cookieControl',
       };
-      const stateKey = mapping[key] ?? key;
-      const boolKeys = ['enabled', 'adBlockEnabled', 'trackerBlockEnabled', 'httpsUpgrade'];
-      const newValue = boolKeys.includes(stateKey) ? value === 'true' : value;
-      return { ...prev, [stateKey]: newValue };
+      const stateKey = mapping[key] ?? key as keyof ShieldsConfig;
+      return { ...current, [stateKey]: value === 'true' };
     });
   };
 
   const clearHistory = async () => {
     await api.history.clear(0);
-    setCleared(true);
-    setTimeout(() => setCleared(false), 2500);
+    showStatus('Browsing history cleared');
   };
 
-  const handleClearGpuCache = () => {
-    setGpuCacheCleared(true);
-    setTimeout(() => setGpuCacheCleared(false), 2500);
+  const clearCache = async () => {
+    await api.app.clearCache();
+    showStatus('Browser cache cleared');
   };
 
-  const handleOpenDevToolsNow = () => {
-    useBrowserStore.getState().toggleDevTools(devDockMode);
+  const clearSiteData = async () => {
+    await api.app.clearBrowsingData();
+    showStatus('Cookies and site data cleared');
+  };
+
+  const savePasswordEntry = async () => {
+    if (!passwordForm.origin || !passwordForm.username || !passwordForm.password) return;
+    await api.passwords.save(passwordForm.origin, passwordForm.username, passwordForm.password);
+    setPasswordForm({ origin: '', username: '', password: '' });
+    setPasswords((await api.passwords.list()) as StoredPassword[]);
+    showStatus('Password saved securely');
   };
 
   const filteredSections = searchFilter.trim()
-    ? SECTIONS.filter((s) => s.label.toLowerCase().includes(searchFilter.toLowerCase()))
+    ? SECTIONS.filter((item) => item.label.toLowerCase().includes(searchFilter.toLowerCase()))
     : SECTIONS;
 
   return (
-    <div className="h-full flex text-white font-sans antialiased select-none overflow-hidden" style={{ background: 'var(--app-bg, #16120e)' }}>
-      {/* ── Sidebar Navigation ── */}
-      <nav className="w-[260px] shrink-0 flex flex-col p-5 border-r border-white/10 backdrop-blur-2xl overflow-y-auto relative" style={{ background: 'var(--glass-bar-bg, rgba(28, 23, 18, 0.8))' }}>
-        {/* Title */}
+    <div className="settings-page h-full flex antialiased select-none overflow-hidden">
+      <nav className="settings-nav w-[260px] shrink-0 flex flex-col p-5 border-r border-white/10 overflow-y-auto relative">
         <div className="flex items-center gap-3 px-1 mb-6">
-          <div
-            className="w-9 h-9 rounded-xl flex items-center justify-center border shadow-lg transition-colors duration-200"
-            style={{
-              backgroundColor: `${currentAccent}25`,
-              borderColor: `${currentAccent}50`,
-              color: currentAccent,
-            }}
-          >
-            <Icon name="palette" size={17} strokeWidth={2} />
+          <div className="nav-pill w-8 h-8 text-white">
+            <Icon name="gear" size={15} strokeWidth={1.8} />
           </div>
           <div>
             <div className="text-sm font-bold text-white tracking-tight">Lumen Settings</div>
@@ -230,748 +252,333 @@ export function SettingsPage({ url }: { url?: string }) {
           </div>
         </div>
 
-        {/* Search */}
         <div className="relative mb-5">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40">
-            <Icon name="search" size={13} strokeWidth={2} />
-          </span>
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40"><Icon name="search" size={13} strokeWidth={1.8} /></span>
           <input
             value={searchFilter}
-            onChange={(e) => setSearchFilter(e.target.value)}
+            onChange={(event) => setSearchFilter(event.target.value)}
             placeholder="Search settings…"
             spellCheck={false}
-            className="w-full pl-9 pr-3 py-2 text-xs rounded-xl bg-white/[0.06] border border-white/10
-              text-white outline-none placeholder:text-white/30 focus:border-white/30 focus:bg-white/[0.09] transition-all"
+            className="settings-control w-full pl-9 pr-3 py-2 text-xs rounded-xl border outline-none placeholder:text-white/30 focus:border-white/30"
           />
         </div>
 
-        {/* Section List */}
         <div className="space-y-1 flex-1">
-          {filteredSections.map((s) => {
-            const active = section === s.id;
+          {filteredSections.map((item) => {
+            const active = section === item.id;
             return (
               <button
-                key={s.id}
-                onClick={() => {
-                  setSection(s.id);
-                  window.location.hash = `#${s.id}`;
-                }}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all duration-150 ${
-                  active
-                    ? 'bg-white/15 text-white shadow-sm border border-white/15'
-                    : 'text-white/70 hover:text-white hover:bg-white/[0.07]'
+                key={item.id}
+                onClick={() => { setSection(item.id); window.location.hash = `#${item.id}`; }}
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all ${
+                  active ? 'settings-selected text-white shadow-sm' : 'text-white/70 hover:text-white hover:bg-white/[0.07]'
                 }`}
               >
-                <div className="flex items-center gap-3">
-                  <span style={{ color: active ? currentAccent : 'rgba(255,255,255,0.5)' }}>
-                    <Icon name={s.icon} size={15} strokeWidth={active ? 2 : 1.8} />
-                  </span>
-                  <span>{s.label}</span>
-                </div>
-                {s.badge && (
-                  <span
-                    className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
-                    style={{
-                      backgroundColor: `${currentAccent}25`,
-                      color: currentAccent,
-                    }}
-                  >
-                    {s.badge}
-                  </span>
-                )}
+                <span className={active ? 'text-white' : 'text-white/50'}><Icon name={item.icon} size={15} strokeWidth={1.8} /></span>
+                <span>{item.label}</span>
               </button>
             );
           })}
         </div>
 
-        {/* Version info footer */}
         <div className="pt-4 mt-auto border-t border-white/10 text-[11px] text-white/40 flex items-center justify-between">
-          <span>Lumen Browser</span>
-          <span>v0.1.0 (Vision)</span>
+          <span>Lumen Browser</span><span>v0.1.0</span>
         </div>
       </nav>
 
-      {/* ── Main Content Area ── */}
       <main className="flex-1 overflow-y-auto p-8 max-w-4xl mx-auto space-y-6">
-        {/* ── 1. General Section ── */}
         {section === 'general' && (
-          <SettingsSection title="General" description="Basic browser preferences and startup behaviors">
-            <Card title="Search Engine" description="Choose your default web search provider">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                {SEARCH_ENGINES.map((se) => {
-                  const active = (settings?.searchEngine ?? 'google') === se.id;
-                  return (
-                    <button
-                      key={se.id}
-                      onClick={() => set('searchEngine', se.id)}
-                      className={`p-3.5 rounded-xl border text-left transition-all ${
-                        active
-                          ? 'text-white shadow-lg'
-                          : 'bg-white/[0.04] border-white/10 hover:bg-white/[0.08] text-white/80'
-                      }`}
-                      style={
-                        active
-                          ? {
-                              backgroundColor: `${currentAccent}18`,
-                              borderColor: `${currentAccent}50`,
-                            }
-                          : undefined
-                      }
-                    >
-                      <div className="text-xs font-semibold text-white">{se.label}</div>
-                      <div className="text-[11px] text-white/50 mt-1">{se.description}</div>
-                    </button>
-                  );
+          <SettingsSection title="General" description="Configure startup behavior and the default home page.">
+            <Card title="Startup & Home" description="Choose what opens when a new window starts.">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 mb-3">
+                {[
+                  { value: 'newtab' as const, label: 'New tab page', description: 'Start with a clean Lumen tab.' },
+                  { value: 'continue' as const, label: 'Continue where you left off', description: 'Restore your tabs when Lumen starts again.' },
+                ].map((item) => {
+                  const active = (settings?.startupBehavior ?? 'newtab') === item.value;
+                  return <button key={item.value} onClick={() => set('startupBehavior', item.value)} className={`settings-control ${active ? 'settings-selected' : ''} p-3 rounded-xl border text-left transition-all hover:bg-white/10`}>
+                    <div className="text-xs font-semibold text-white">{item.label}</div>
+                    <div className="text-[11px] text-white/50 mt-0.5">{item.description}</div>
+                  </button>;
                 })}
               </div>
-            </Card>
-
-            <Card title="Startup & Home" description="Configure default startup page">
-              <div className="space-y-3 pt-2">
-                {/* Homepage presets */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {[
-                    { label: 'New Tab Page', value: 'lumen://newtab', desc: 'Lumen internal page' },
-                    { label: 'Google', value: 'https://www.google.com', desc: 'google.com' },
-                    { label: 'DuckDuckGo', value: 'https://duckduckgo.com', desc: 'duckduckgo.com' },
-                    { label: 'YouTube', value: 'https://www.youtube.com', desc: 'youtube.com' },
-                    { label: 'GitHub', value: 'https://github.com', desc: 'github.com' },
-                    { label: 'Reddit', value: 'https://www.reddit.com', desc: 'reddit.com' },
-                  ].map((opt) => {
-                    const active = (settings?.homepage ?? 'lumen://newtab') === opt.value;
-                    return (
-                      <button
-                        key={opt.value}
-                        onClick={() => set('homepage', opt.value)}
-                        className={`p-3 rounded-xl border text-left transition-all ${
-                          active
-                            ? 'bg-white/15 shadow-md'
-                            : 'bg-white/[0.04] border-white/10 hover:bg-white/[0.08]'
-                        }`}
-                        style={
-                          active
-                            ? { borderColor: currentAccent, boxShadow: `0 0 14px ${currentAccent}40` }
-                            : undefined
-                        }
-                      >
-                        <div className="text-xs font-semibold text-white">{opt.label}</div>
-                        <div className="text-[11px] text-white/50 mt-0.5">{opt.desc}</div>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Custom homepage URL */}
-                <div className="flex items-center justify-between pt-3 border-t border-white/10">
-                  <div>
-                    <div className="text-xs font-medium text-white">Custom Homepage URL</div>
-                    <div className="text-[11px] text-white/50">Page loaded on launch or new window</div>
-                  </div>
-                  <input
-                    type="text"
-                    value={settings?.homepage ?? 'lumen://newtab'}
-                    onChange={(e) => set('homepage', e.target.value)}
-                    placeholder="lumen://newtab"
-                    className="px-3 py-1.5 rounded-xl bg-white/[0.06] border border-white/10 text-xs text-white outline-none w-64 text-right focus:border-white/30"
-                  />
-                </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
+                {HOMEPAGES.map((item) => {
+                  const active = (settings?.homepage ?? 'lumen://newtab') === item.value;
+                  return <button key={item.value} onClick={() => set('homepage', item.value)} className={`settings-control ${active ? 'settings-selected' : ''} p-3 rounded-xl border text-left transition-all hover:bg-white/10`}>
+                    <div className="text-xs font-semibold text-white">{item.label}</div>
+                    <div className="text-[11px] text-white/50 mt-0.5">{item.description}</div>
+                  </button>;
+                })}
+              </div>
+              <div className="flex items-center justify-between pt-3 mt-2 border-t border-white/10">
+                <div><div className="text-xs font-medium text-white">Custom Homepage URL</div><div className="text-[11px] text-white/50">Used for new windows.</div></div>
+                <input type="text" value={settings?.homepage ?? 'lumen://newtab'} onChange={(event) => set('homepage', event.target.value)} className="settings-control px-3 py-1.5 rounded-xl border text-xs outline-none w-64 text-right" />
               </div>
             </Card>
           </SettingsSection>
         )}
 
-        {/* ── 2. Appearance Section ── */}
         {section === 'appearance' && (
-          <SettingsSection title="Appearance & Style" description="Customize accent color, glass opacity, and vibrancy">
-            <Card title="Color Theme" description="Choose your preferred color mode">
+          <SettingsSection title="Appearance" description="Choose the browser mood and keep every bar, menu, and internal page in sync.">
+            <Card title="Theme mode" description="Choose whether the browser follows your system appearance.">
               <div className="grid grid-cols-3 gap-3 pt-2">
-                {(['dark', 'light', 'system'] as const).map((t) => {
-                  const active = (settings?.theme ?? storeTheme ?? 'dark') === t;
+                {(['dark', 'light', 'system'] as const).map((mode) => <button key={mode} onClick={() => set('theme', mode)} className={`settings-control ${(settings?.theme ?? storeTheme ?? 'dark') === mode ? 'settings-selected' : ''} py-3 px-4 rounded-xl border capitalize text-xs font-semibold hover:bg-white/10`}>
+                  {mode === 'system' ? 'System Sync' : `${mode} Mode`}
+                </button>)}
+              </div>
+            </Card>
+            <Card title="Browser color" description="Choose a color atmosphere for the browser chrome and internal pages.">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-2">
+                {COLOR_THEMES.map((item) => {
+                  const active = (settings?.colorTheme ?? 'ember') === item.id;
                   return (
                     <button
-                      key={t}
-                      onClick={() => set('theme', t)}
-                      className={`py-3 px-4 rounded-xl border capitalize text-xs font-semibold transition-all ${
-                        active
-                          ? 'text-white shadow-lg'
-                          : 'bg-white/[0.04] border-white/10 hover:bg-white/[0.08] text-white/70'
-                      }`}
-                      style={
-                        active
-                          ? {
-                              backgroundColor: `${currentAccent}22`,
-                              borderColor: `${currentAccent}60`,
-                            }
-                          : undefined
-                      }
+                      key={item.id}
+                      type="button"
+                      onClick={() => set('colorTheme', item.id as ColorTheme)}
+                      className={`settings-control ${active ? 'settings-selected' : ''} p-2.5 rounded-xl border text-left transition-all hover:bg-white/10`}
+                      title={item.description}
                     >
-                      {t === 'system' ? 'System Sync' : `${t} Mode`}
+                      <span className="block w-full h-5 rounded-md mb-2" style={{ background: item.swatch }} />
+                      <span className="block text-[11px] font-semibold text-white">{item.label}</span>
                     </button>
                   );
                 })}
               </div>
             </Card>
-
-            <Card title="Accent Color" description="Primary highlight color applied throughout the entire browser">
-              <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 pt-2">
-                {ACCENT_PRESETS.map((p) => {
-                  const active = currentAccent.toLowerCase() === p.color.toLowerCase();
-                  return (
-                    <button
-                      key={p.id}
-                      onClick={() => set('accentColor', p.color)}
-                      className={`flex flex-col items-center gap-2 p-3 rounded-xl border transition-all ${
-                        active
-                          ? 'bg-white/15 shadow-md'
-                          : 'bg-white/[0.04] border-white/10 hover:bg-white/[0.08]'
-                      }`}
-                      style={
-                        active
-                          ? {
-                              borderColor: currentAccent,
-                              boxShadow: `0 0 14px ${currentAccent}40`,
-                            }
-                          : undefined
-                      }
-                    >
-                      <span className="w-6 h-6 rounded-full shadow-md" style={{ backgroundColor: p.color }} />
-                      <span className="text-[11px] font-medium text-white/90">{p.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Custom Hex Color Picker */}
-              <div className="pt-4 mt-2 border-t border-white/10 flex items-center justify-between">
-                <div>
-                  <div className="text-xs font-medium text-white">Custom Accent Color</div>
-                  <div className="text-[11px] text-white/50">Pick any custom color hex code</div>
-                </div>
-                <div className="flex items-center gap-2.5">
-                  <input
-                    type="color"
-                    value={currentAccent}
-                    onChange={(e) => set('accentColor', e.target.value)}
-                    className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 outline-none"
-                  />
-                  <input
-                    type="text"
-                    value={currentAccent}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      if (val.startsWith('#') && (val.length === 4 || val.length === 7)) {
-                        set('accentColor', val);
-                      }
-                    }}
-                    className="px-3 py-1.5 rounded-xl bg-white/[0.06] border border-white/10 text-xs text-white outline-none w-28 text-center font-mono uppercase focus:border-white/30"
-                  />
-                </div>
-              </div>
-            </Card>
-
-            <Card title="Background Color" description="The main surface color behind the browser chrome and glass panels">
-              <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 pt-2">
-                {SURFACE_PRESETS.map((p) => {
-                  const active = currentSurface.toLowerCase() === p.color.toLowerCase();
-                  return (
-                    <button
-                      key={p.id}
-                      onClick={() => set('surfaceColor', p.color)}
-                      className={`flex flex-col items-center gap-2 p-3 rounded-xl border transition-all ${
-                        active
-                          ? 'bg-white/15 shadow-md'
-                          : 'bg-white/[0.04] border-white/10 hover:bg-white/[0.08]'
-                      }`}
-                      style={
-                        active
-                          ? {
-                              borderColor: currentAccent,
-                              boxShadow: `0 0 14px ${currentAccent}40`,
-                            }
-                          : undefined
-                      }
-                    >
-                      <span className="w-6 h-6 rounded-full shadow-md ring-1 ring-white/20" style={{ backgroundColor: p.color }} />
-                      <span className="text-[11px] font-medium text-white/90">{p.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Custom Hex Color Picker */}
-              <div className="pt-4 mt-2 border-t border-white/10 flex items-center justify-between">
-                <div>
-                  <div className="text-xs font-medium text-white">Custom Background Color</div>
-                  <div className="text-[11px] text-white/50">Pick any custom color hex code</div>
-                </div>
-                <div className="flex items-center gap-2.5">
-                  <input
-                    type="color"
-                    value={currentSurface}
-                    onChange={(e) => set('surfaceColor', e.target.value)}
-                    className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 outline-none"
-                  />
-                  <input
-                    type="text"
-                    value={currentSurface}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      if (val.startsWith('#') && (val.length === 4 || val.length === 7)) {
-                        set('surfaceColor', val);
-                      }
-                    }}
-                    className="px-3 py-1.5 rounded-xl bg-white/[0.06] border border-white/10 text-xs text-white outline-none w-28 text-center font-mono uppercase focus:border-white/30"
-                  />
-                </div>
-              </div>
-            </Card>
-
-            <Card title="Glass Transparency & Blur" description="Adjust background blur and surface opacity">
-              <div className="space-y-4 pt-2">
-                <div>
-                  <div className="flex justify-between text-xs font-medium mb-2">
-                    <span className="text-white/80">Glass Opacity</span>
-                    <span className="font-semibold" style={{ color: currentAccent }}>
-                      {settings?.glassOpacity ?? 65}%
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min="30"
-                    max="100"
-                    value={settings?.glassOpacity ?? 65}
-                    onChange={(e) => set('glassOpacity', Number(e.target.value))}
-                    className="w-full cursor-pointer h-1.5 bg-white/10 rounded-lg"
-                    style={{ accentColor: currentAccent }}
-                  />
-                </div>
-
-                <div>
-                  <div className="flex justify-between text-xs font-medium mb-2">
-                    <span className="text-white/80">Glass Blur Frosting</span>
-                    <span className="font-semibold" style={{ color: currentAccent }}>
-                      {settings?.glassBlur ?? 16}px
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="40"
-                    value={settings?.glassBlur ?? 16}
-                    onChange={(e) => set('glassBlur', Number(e.target.value))}
-                    className="w-full cursor-pointer h-1.5 bg-white/10 rounded-lg"
-                    style={{ accentColor: currentAccent }}
-                  />
-                </div>
-              </div>
-
-              <div className="pt-4 border-t border-white/10 flex justify-end">
-                <button
-                  onClick={handleResetCustomization}
-                  className="px-4 py-2 text-xs font-medium rounded-xl bg-white/10 hover:bg-white/15 text-white/90 transition-colors"
-                >
-                  Reset to Defaults
-                </button>
-              </div>
+            <Card title="Glass surfaces" description="These settings affect the shared browser chrome, bars, menus, and internal pages.">
+              <RangeRow label="Glass opacity" value={`${settings?.glassOpacity ?? 65}%`} min={30} max={100} current={settings?.glassOpacity ?? 65} onChange={(value) => set('glassOpacity', value)} />
+              <RangeRow label="Glass blur" value={`${settings?.glassBlur ?? 16}px`} min={0} max={40} current={settings?.glassBlur ?? 16} onChange={(value) => set('glassBlur', value)} />
+              <div className="flex justify-end pt-3 mt-2 border-t border-white/10"><button onClick={resetTheme} className="settings-action-button px-4 py-2 text-xs font-medium rounded-xl">Reset shared theme</button></div>
             </Card>
           </SettingsSection>
         )}
 
-        {/* ── 3. Search Section ── */}
         {section === 'search' && (
-          <SettingsSection title="Search Engine" description="Manage default search providers and suggestions">
-            <Card title="Default Search Engine" description="Search provider used for Omnibox queries">
+          <SettingsSection title="Search Engine" description="Choose the provider used by the address bar.">
+            <Card title="Default Search Engine">
               <div className="space-y-2 pt-2">
-                {SEARCH_ENGINES.map((se) => {
-                  const active = (settings?.searchEngine ?? 'google') === se.id;
-                  return (
-                    <div
-                      key={se.id}
-                      onClick={() => set('searchEngine', se.id)}
-                      className={`p-4 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
-                        active
-                          ? 'text-white shadow-md'
-                          : 'bg-white/[0.04] border-white/10 hover:bg-white/[0.08] text-white/80'
-                      }`}
-                      style={
-                        active
-                          ? {
-                              backgroundColor: `${currentAccent}18`,
-                              borderColor: `${currentAccent}50`,
-                            }
-                          : undefined
-                      }
-                    >
-                      <div>
-                        <div className="text-xs font-semibold text-white">{se.label}</div>
-                        <div className="text-[11px] text-white/50">{se.description}</div>
-                      </div>
-                      <div
-                        className="w-4 h-4 rounded-full border flex items-center justify-center transition-colors"
-                        style={{
-                          borderColor: active ? currentAccent : 'rgba(255,255,255,0.3)',
-                          backgroundColor: active ? currentAccent : 'transparent',
-                        }}
-                      >
-                        {active && <div className="w-1.5 h-1.5 rounded-full bg-black" />}
-                      </div>
-                    </div>
-                  );
+                {SEARCH_ENGINES.map((item) => {
+                  const active = (settings?.searchEngine ?? 'google') === item.id;
+                  return <button key={item.id} onClick={() => set('searchEngine', item.id)} className={`settings-control ${active ? 'settings-selected' : ''} w-full p-3 rounded-xl border text-left flex items-center justify-between hover:bg-white/10`}>
+                    <span><span className="block text-xs font-semibold text-white">{item.label}</span><span className="block text-[11px] text-white/50 mt-1">{item.description}</span></span>
+                      <span className={`w-4 h-4 rounded-full border flex items-center justify-center ${active ? 'border-[var(--theme-primary)] bg-[var(--theme-primary)]' : 'border-white/30'}`}>{active && <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-surface-solid)]" />}</span>
+                  </button>;
                 })}
               </div>
             </Card>
           </SettingsSection>
         )}
 
-        {/* ── 4. Tabs Section ── */}
         {section === 'tabs' && (
-          <SettingsSection title="Tabs & Windows" description="Manage tab layout, bookmarks bar, and memory hibernation">
-            <Card title="Tab Strips & Bookmarks" description="Customize browser chrome visibility">
-              <div className="space-y-4 divide-y divide-white/10">
-                <ToggleRow
-                  label="Show Bookmarks Bar"
-                  hint="Display the bookmarks quick access bar beneath address bar"
-                  checked={settings?.bookmarksBarVisible ?? true}
-                  accentColor={currentAccent}
-                  onChange={(v) => set('bookmarksBarVisible', v)}
-                />
-                <div className="pt-4 flex items-center justify-between">
-                  <div>
-                    <div className="text-xs font-medium text-white">Auto-Hibernate Inactive Tabs</div>
-                    <div className="text-[11px] text-white/50">Free memory by offloading background tabs</div>
-                  </div>
-                  <select
-                    value={settings?.hibernateMinutes ?? 15}
-                    onChange={(e) => set('hibernateMinutes', Number(e.target.value))}
-                    className="px-3 py-1.5 rounded-xl bg-white/[0.04] border border-white/15 text-xs text-white outline-none cursor-pointer"
-                  >
-                    <option value={5}>After 5 minutes</option>
-                    <option value={15}>After 15 minutes</option>
-                    <option value={30}>After 30 minutes</option>
-                    <option value={60}>After 1 hour</option>
-                    <option value={0}>Never hibernate</option>
-                  </select>
-                </div>
-              </div>
+          <SettingsSection title="Tabs & Windows" description="Manage browser chrome visibility and memory use.">
+            <Card title="Tab strips & bookmarks">
+              <ToggleRow label="Show bookmarks bar" hint="Display quick access links beneath the address bar." checked={settings?.bookmarksBarVisible ?? true} onChange={(value) => set('bookmarksBarVisible', value)} />
+              <div className="flex items-center justify-between pt-4 mt-3 border-t border-white/10"><div><div className="text-xs font-medium text-white">Auto-hibernate inactive tabs</div><div className="text-[11px] text-white/50">Free memory by unloading background tabs.</div></div><ThemedSelect value={String(settings?.hibernateMinutes ?? 15)} onChange={(value) => set('hibernateMinutes', Number(value))} options={[{ value: '0', label: 'Never' }, { value: '5', label: 'After 5 minutes' }, { value: '15', label: 'After 15 minutes' }, { value: '30', label: 'After 30 minutes' }, { value: '60', label: 'After 1 hour' }]} /></div>
             </Card>
           </SettingsSection>
         )}
 
-        {/* ── 5. Performance Section ── */}
         {section === 'performance' && (
-          <SettingsSection title="Performance" description="Hardware acceleration, GPU rasterization, and memory saver">
-            <Card title="Graphics & Engine Acceleration" description="Chromium GPU composite and performance speedups">
-              <div className="space-y-4 divide-y divide-white/10">
-                <ToggleRow
-                  label="Hardware GPU Acceleration"
-                  hint="Use direct GPU rasterization, zero-copy buffers, and WebGL acceleration"
-                  checked={devHardwareAccel}
-                  accentColor={currentAccent}
-                  onChange={setDevHardwareAccel}
-                />
-                <ToggleRow
-                  label="Smooth Scrolling Engine"
-                  hint="Enable high-refresh rate interpolated smooth scrolling"
-                  checked={devSmoothScroll}
-                  accentColor={currentAccent}
-                  onChange={setDevSmoothScroll}
-                />
-                <div className="pt-4 flex items-center justify-between">
-                  <div>
-                    <div className="text-xs font-medium text-white">Shader & GPU Cache</div>
-                    <div className="text-[11px] text-white/50">Clear compiled shaders and GPU buffer cache</div>
-                  </div>
-                  <button
-                    onClick={handleClearGpuCache}
-                    className="px-4 py-2 text-xs font-medium rounded-xl bg-white/10 hover:bg-white/15 text-white transition-colors"
-                  >
-                    {gpuCacheCleared ? '✓ Cleared' : 'Purge GPU Cache'}
-                  </button>
-                </div>
+          <SettingsSection title="Performance" description="Manage real Chromium cache and memory behavior.">
+            <Card title="Live browser performance" description="Updated every second from Chromium process metrics.">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                <Stat label="Memory" value={performance ? `${performance.memoryMb} MB` : '—'} />
+                <Stat label="CPU" value={performance ? `${performance.cpuPercent}%` : '—'} />
+                <Stat label="Active tab" value={performance ? `${performance.activeTabCpuPercent}%` : '—'} />
+                <Stat label="Processes" value={performance?.processCount ?? 0} />
+                <Stat label="Tabs" value={performance?.tabCount ?? 0} />
               </div>
+            </Card>
+            <Card title="Browser cache" description="Clear cached web resources without deleting bookmarks or history.">
+              <div className="flex items-center justify-between"><div><div className="text-xs font-medium text-white">Clear cached files</div><div className="text-[11px] text-white/50">Useful when a site is showing stale assets.</div></div><button onClick={() => void clearCache()} className="settings-action-button px-4 py-2 text-xs font-medium rounded-xl">Clear cache</button></div>
             </Card>
           </SettingsSection>
         )}
 
-        {/* ── 6. Shields Section ── */}
         {section === 'shields' && (
-          <SettingsSection title="Lumen Shields" description="Ad blocking, tracker protection, and fingerprint defense">
-            <Card title="Protection Master Switch" description="Global protection state for all web browsing">
-              <ToggleRow
-                label="Enable Lumen Shields"
-                hint="Block ads, tracking scripts, cryptominers, and malicious fingerprinting"
-                checked={shieldsConfig?.enabled ?? true}
-                accentColor={currentAccent}
-                onChange={(v) => setShield('enabled', String(v))}
-              />
+          <SettingsSection title="Lumen Shields" description="Ad blocking, tracker protection, and secure transport.">
+            <Card title="Protection master switch"><ToggleRow label="Enable Lumen Shields" hint="Apply protection to all web tabs." checked={shieldsConfig?.enabled ?? true} onChange={(value) => setShield('enabled', String(value))} /></Card>
+            <Card title="Protection modules">
+              <ToggleRow label="Ad & cosmetic filtering" hint="Remove intrusive display ads and banners." checked={shieldsConfig?.adBlockEnabled ?? true} onChange={(value) => setShield('adBlock', String(value))} />
+              <ToggleRow label="Tracker protection" hint="Block common analytics and tracking beacons." checked={shieldsConfig?.trackerBlockEnabled ?? true} onChange={(value) => setShield('trackerBlock', String(value))} />
+              <ToggleRow label="HTTPS upgrade" hint="Upgrade eligible HTTP connections." checked={shieldsConfig?.httpsUpgrade ?? true} onChange={(value) => setShield('httpsUpgrade', String(value))} />
             </Card>
-
-            <Card title="Content Blocking & Privacy Controls" description="Fine-tune individual shield modules">
-              <div className="space-y-4 divide-y divide-white/10">
-                <ToggleRow
-                  label="Ad & Cosmetic Filtering"
-                  hint="Remove intrusive display ads, banners, and video prerolls"
-                  checked={shieldsConfig?.adBlockEnabled ?? true}
-                  accentColor={currentAccent}
-                  onChange={(v) => setShield('adBlock', String(v))}
-                />
-                <ToggleRow
-                  label="Tracker & Telemetry Shield"
-                  hint="Block cross-site tracking beacons and analytic scripts"
-                  checked={shieldsConfig?.trackerBlockEnabled ?? true}
-                  accentColor={currentAccent}
-                  onChange={(v) => setShield('trackerBlock', String(v))}
-                />
-                <ToggleRow
-                  label="HTTPS Everywhere Upgrade"
-                  hint="Automatically upgrade unencrypted HTTP connections to HTTPS"
-                  checked={shieldsConfig?.httpsUpgrade ?? true}
-                  accentColor={currentAccent}
-                  onChange={(v) => setShield('httpsUpgrade', String(v))}
-                />
-              </div>
-            </Card>
-
-            {shieldsStats && (
-              <Card title="Live Shield Statistics" description="Total threats and intrusions stopped on this device">
-                <div className="grid grid-cols-3 gap-3 pt-2">
-                  <div className="p-3.5 rounded-xl bg-white/[0.04] border border-white/10 text-center">
-                    <div className="text-xl font-bold" style={{ color: currentAccent }}>
-                      {shieldsStats.adsBlocked ?? 0}
-                    </div>
-                    <div className="text-[11px] text-white/50 mt-1">Ads Blocked</div>
-                  </div>
-                  <div className="p-3.5 rounded-xl bg-white/[0.04] border border-white/10 text-center">
-                    <div className="text-xl font-bold text-teal-300">{shieldsStats.trackersBlocked ?? 0}</div>
-                    <div className="text-[11px] text-white/50 mt-1">Trackers Stopped</div>
-                  </div>
-                  <div className="p-3.5 rounded-xl bg-white/[0.04] border border-white/10 text-center">
-                    <div className="text-xl font-bold text-emerald-300">{shieldsStats.httpsUpgrades ?? 0}</div>
-                    <div className="text-[11px] text-white/50 mt-1">HTTPS Upgrades</div>
-                  </div>
-                </div>
-              </Card>
-            )}
+            {shieldsStats && <Card title="Live statistics"><div className="grid grid-cols-3 gap-3"><Stat label="Ads blocked" value={shieldsStats.adsBlocked} /><Stat label="Trackers" value={shieldsStats.trackersBlocked} /><Stat label="HTTPS upgrades" value={shieldsStats.httpsUpgrades} /></div></Card>}
           </SettingsSection>
         )}
 
-        {/* ── 7. Privacy Section ── */}
         {section === 'privacy' && (
-          <SettingsSection title="Privacy & Data" description="Manage browsing history, local SQLite store, and autofill">
-            <Card title="Browsing History & Cache" description="Erase navigation history and local partition storage">
-              <div className="flex items-center justify-between py-2">
-                <div>
-                  <div className="text-xs font-medium text-white">Clear Browsing History</div>
-                  <div className="text-[11px] text-white/50">Delete all visit records and search queries</div>
-                </div>
-                <button
-                  onClick={clearHistory}
-                  className="px-4 py-2 text-xs font-medium rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/30 transition-colors"
-                >
-                  {cleared ? '✓ History Cleared' : 'Clear All History'}
-                </button>
-              </div>
+          <SettingsSection title="Privacy & Data" description="Control what Lumen sends, stores, and removes on your behalf.">
+            <Card title="Privacy preferences">
+              <ToggleRow label="Send a Do Not Track request" hint="Ask websites not to use your activity for tracking." checked={settings?.sendDoNotTrack ?? false} onChange={(value) => set('sendDoNotTrack', value)} />
+              <div className="border-t border-white/10 pt-3 mt-2"><ToggleRow label="Clear site data when Lumen closes" hint="Remove cookies, local storage, and service-worker data on exit." checked={settings?.clearSiteDataOnExit ?? false} onChange={(value) => set('clearSiteDataOnExit', value)} /></div>
+              <div className="border-t border-white/10 pt-3 mt-2"><ToggleRow label="Clear history when Lumen closes" hint="Delete locally stored visit records when the browser exits." checked={settings?.clearHistoryOnExit ?? false} onChange={(value) => set('clearHistoryOnExit', value)} /></div>
+            </Card>
+            <Card title="Browsing history" description="Delete visit records and search queries stored on this device.">
+              <div className="flex items-center justify-between gap-4"><div><div className="text-xs font-medium text-white">Clear browsing history now</div><div className="text-[11px] text-white/50">This cannot be undone.</div></div><button onClick={() => void clearHistory()} className="settings-danger-button px-4 py-2 text-xs font-medium rounded-xl">Clear history</button></div>
+            </Card>
+            <Card title="Site data" description="Remove cookies and local site storage without touching bookmarks or saved passwords.">
+              <div className="flex items-center justify-between gap-4"><div><div className="text-xs font-medium text-white">Clear cookies and site data</div><div className="text-[11px] text-white/50">You may be signed out of websites.</div></div><button onClick={() => void clearSiteData()} className="settings-danger-button px-4 py-2 text-xs font-medium rounded-xl">Clear site data</button></div>
             </Card>
           </SettingsSection>
         )}
 
-        {/* ── 8. Developer Section ── */}
-        {section === 'developer' && (
-          <SettingsSection title="Developer & Tools" description="Chromium DevTools dock mode, user agents, and debugging tools">
-            <Card title="DevTools Layout" description="Choose docking position for inspection tools">
-              <div className="grid grid-cols-3 gap-3 pt-2">
-                {(['right', 'bottom', 'detach'] as const).map((mode) => {
-                  const active = devDockMode === mode;
-                  return (
-                    <button
-                      key={mode}
-                      onClick={() => set('devDockMode', mode)}
-                      className={`py-3 px-4 rounded-xl border capitalize text-xs font-semibold transition-all ${
-                        active
-                          ? 'text-white shadow-lg'
-                          : 'bg-white/[0.04] border-white/10 hover:bg-white/[0.08] text-white/70'
-                      }`}
-                      style={
-                        active
-                          ? {
-                              backgroundColor: `${currentAccent}22`,
-                              borderColor: `${currentAccent}60`,
-                            }
-                          : undefined
-                      }
-                    >
-                      {mode === 'detach' ? 'Separate Window' : `Dock to ${mode}`}
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="pt-4 mt-4 border-t border-white/10 flex justify-end">
-                <button
-                  onClick={handleOpenDevToolsNow}
-                  className="px-4 py-2 text-xs font-medium rounded-xl border transition-all"
-                  style={{
-                    backgroundColor: `${currentAccent}22`,
-                    borderColor: `${currentAccent}50`,
-                    color: currentAccent,
-                  }}
-                >
-                  Inspect Active Tab (DevTools)
-                </button>
-              </div>
-            </Card>
-
-            <Card title="User Agent Emulation" description="Override browser identity for testing and responsive verification">
-              <div className="space-y-3 pt-2">
-                <select
-                  value={devSelectedUa}
-                  onChange={(e) => set('devUserAgent', e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-white/[0.04] border border-white/15 text-xs text-white outline-none cursor-pointer"
-                >
-                  {USER_AGENT_PRESETS.map((ua) => (
-                    <option key={ua.id} value={ua.id}>
-                      {ua.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+        {section === 'history' && (
+          <SettingsSection title="History" description="Search, revisit, and remove individual browsing records.">
+            <Card title="Browsing history">
+              <div className="flex gap-2 mb-3"><input value={historyQuery} onChange={(event) => setHistoryQuery(event.target.value)} placeholder="Search history…" className="settings-control flex-1 px-3 py-2 rounded-xl border text-xs outline-none" /><button onClick={() => void clearHistory().then(() => setHistoryEntries([]))} className="settings-danger-button px-3 rounded-xl text-xs">Clear all</button></div>
+              <div className="space-y-1 max-h-[520px] overflow-y-auto">{historyEntries.map((entry) => <div key={entry.id} className="history-entry flex items-center gap-3 p-2 rounded-xl"><div className="min-w-0 flex-1"><div className="text-xs font-semibold truncate">{entry.title || entry.url}</div><div className="text-[11px] text-[var(--color-text-secondary)] truncate">{new Date(entry.visitedAt).toLocaleString()} · {entry.url}</div></div><button className="history-entry-remove grid place-items-center w-7 h-7 rounded-lg" onClick={() => void api.history.remove(entry.id).then(() => setHistoryEntries((current) => current.filter((item) => item.id !== entry.id)))}><Icon name="x" size={13} /></button></div>)}</div>
+              {historyEntries.length === 0 && <div className="text-xs text-[var(--color-text-secondary)] text-center py-8">No history found.</div>}
             </Card>
           </SettingsSection>
         )}
 
-        {/* ── 9. Shortcuts Section ── */}
-        {section === 'shortcuts' && (
-          <SettingsSection title="Keyboard Shortcuts" description="Essential keyboard shortcuts for rapid navigation">
-            {SHORTCUT_GROUPS.map((group) => (
-              <Card key={group.category} title={group.category}>
-                <div className="divide-y divide-white/[0.06]">
-                  {group.items.map((item, i) => (
-                    <div key={i} className="py-2.5 flex items-center justify-between text-xs">
-                      <span className="text-white/80">{item.action}</span>
-                      <kbd className="px-2.5 py-1 rounded-lg bg-white/10 border border-white/15 text-white/90 font-mono text-[11px] font-medium shadow-sm">
-                        {item.keys}
-                      </kbd>
+        {section === 'downloads' && (
+          <SettingsSection title="Downloads" description="View downloaded files and open them in your file manager.">
+            <Card title="Downloaded files">
+              <div className="space-y-2">
+                {downloads.map((download) => (
+                  <div key={download.id} className="flex items-center gap-3 p-3 rounded-xl settings-control">
+                    <Icon name="download" size={16} className="text-[var(--theme-primary)] shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-semibold truncate">{download.filename}</div>
+                      <div className="text-[11px] text-[var(--color-text-secondary)] truncate">{download.path || download.url || 'Download'} · {formatBytes(download.receivedBytes)}</div>
                     </div>
-                  ))}
-                </div>
-              </Card>
-            ))}
-          </SettingsSection>
-        )}
-
-        {/* ── 10. About Section ── */}
-        {section === 'about' && (
-          <SettingsSection title="About Lumen" description="System details, engine architecture, and credits">
-            <Card title="Lumen Browser (Vision Glass Edition)">
-              <div className="space-y-3 text-xs text-white/80 leading-relaxed">
-                <p>
-                  Lumen is a modern desktop browser built with high-performance Electron, Chromium WebContentsView multi-process tabs, and a sleek warm glassmorphic interface.
-                </p>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
-                  <div className="p-3 rounded-xl bg-white/[0.04] border border-white/10">
-                    <div className="text-[10px] text-white/40 uppercase font-semibold">Engine</div>
-                    <div className="text-xs font-bold text-white mt-0.5">Chromium 124</div>
+                    <span className="text-[10px] uppercase text-[var(--color-text-secondary)]">{download.state}</span>
+                    <button disabled={!download.path} onClick={() => void api.downloads.open(download.id)} className="settings-action-button px-3 py-1.5 rounded-lg text-[11px] disabled:opacity-40">Show in folder</button>
                   </div>
-                  <div className="p-3 rounded-xl bg-white/[0.04] border border-white/10">
-                    <div className="text-[10px] text-white/40 uppercase font-semibold">Database</div>
-                    <div className="text-xs font-bold text-white mt-0.5">SQLite (WAL)</div>
-                  </div>
-                  <div className="p-3 rounded-xl bg-white/[0.04] border border-white/10">
-                    <div className="text-[10px] text-white/40 uppercase font-semibold">UI Layer</div>
-                    <div className="text-xs font-bold text-white mt-0.5">React + Tailwind</div>
-                  </div>
-                  <div className="p-3 rounded-xl bg-white/[0.04] border border-white/10">
-                    <div className="text-[10px] text-white/40 uppercase font-semibold">Architecture</div>
-                    <div className="text-xs font-bold text-white mt-0.5">Multi-Process</div>
-                  </div>
-                </div>
+                ))}
+                {downloads.length === 0 && <div className="text-xs text-[var(--color-text-secondary)] text-center py-8">No downloads yet.</div>}
               </div>
             </Card>
           </SettingsSection>
         )}
+
+        {section === 'passwords' && (
+          <SettingsSection title="Password Manager" description="Store login metadata locally with encrypted password values.">
+            <Card title="Saved passwords">
+              <div className="space-y-1 mb-4">{passwords.map((entry) => <div key={entry.id} className="flex items-center gap-3 p-3 rounded-xl settings-control"><Icon name="lock" size={15} className="text-[var(--theme-primary)]" /><div className="min-w-0 flex-1"><div className="text-xs font-semibold truncate">{entry.origin}</div><div className="text-[11px] text-[var(--color-text-secondary)] truncate">{entry.username}</div></div><button className="settings-danger-button px-2 py-1 rounded-lg text-[11px]" onClick={() => void api.passwords.remove(entry.id).then(() => setPasswords((current) => current.filter((item) => item.id !== entry.id)))}>Remove</button></div>)}</div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2"><input value={passwordForm.origin} onChange={(event) => setPasswordForm({ ...passwordForm, origin: event.target.value })} placeholder="https://example.com" className="settings-control px-3 py-2 rounded-xl border text-xs outline-none" /><input value={passwordForm.username} onChange={(event) => setPasswordForm({ ...passwordForm, username: event.target.value })} placeholder="Username" className="settings-control px-3 py-2 rounded-xl border text-xs outline-none" /><input type="password" value={passwordForm.password} onChange={(event) => setPasswordForm({ ...passwordForm, password: event.target.value })} placeholder="Password" className="settings-control px-3 py-2 rounded-xl border text-xs outline-none" /></div><button onClick={() => void savePasswordEntry()} className="settings-action-button mt-3 px-4 py-2 rounded-xl text-xs">Add password</button>
+            </Card>
+          </SettingsSection>
+        )}
+
+        {section === 'permissions' && (
+          <SettingsSection title="Site Permissions" description="Choose the default permission behavior for the active site.">
+            <Card title={activeOrigin || 'No active website'} description="Permission controls are scoped to the current site origin.">
+              {['notifications', 'geolocation', 'camera', 'microphone'].map((permission) => <div key={permission} className="flex items-center justify-between py-3 border-b border-white/10 last:border-0"><div><div className="text-xs font-semibold capitalize">{permission}</div><div className="text-[11px] text-[var(--color-text-secondary)]">Ask, allow, or block this site.</div></div><ThemedSelect value={permissionValues[permission] ?? 'ask'} onChange={(value) => { setPermissionValues({ ...permissionValues, [permission]: value }); if (activeOrigin) void api.settings.set(`permission:${activeOrigin}:${permission}`, value); }} options={[{ value: 'ask', label: 'Ask' }, { value: 'allow', label: 'Allow' }, { value: 'block', label: 'Block' }]} /></div>)}
+            </Card>
+          </SettingsSection>
+        )}
+
+        {section === 'developer' && (
+          <SettingsSection title="Developer & Tools" description="Configure real Chromium inspection tools.">
+            <Card title="DevTools layout" description="Choose where Chromium docks DevTools.">
+              <div className="grid grid-cols-3 gap-3">{(['right', 'bottom', 'detach'] as const).map((mode) => <button key={mode} onClick={() => set('devDockMode', mode)} className={`settings-control ${(settings?.devDockMode ?? 'right') === mode ? 'settings-selected' : ''} py-3 px-4 rounded-xl border capitalize text-xs font-semibold hover:bg-white/10`}>{mode === 'detach' ? 'Separate window' : `Dock to ${mode}`}</button>)}</div>
+              <div className="flex justify-end pt-4 mt-4 border-t border-white/10"><button onClick={() => useBrowserStore.getState().toggleDevTools(settings?.devDockMode ?? 'right')} className="settings-action-button px-4 py-2 text-xs font-medium rounded-xl">Inspect active tab</button></div>
+            </Card>
+            <Card title="User agent emulation" description="Apply a browser identity to the current window's tabs."><ThemedSelect value={settings?.devUserAgent ?? 'default'} onChange={(value) => set('devUserAgent', value)} options={USER_AGENT_PRESETS.map((preset) => ({ value: preset.id, label: preset.label }))} fullWidth /></Card>
+          </SettingsSection>
+        )}
+
+        {section === 'shortcuts' && <SettingsSection title="Keyboard Shortcuts" description="Shortcuts available in both the browser chrome and web pages.">{SHORTCUT_GROUPS.map((group) => <Card key={group.category} title={group.category}><div className="divide-y divide-white/[0.06]">{group.items.map(([keys, action]) => <div key={keys} className="py-2.5 flex items-center justify-between text-xs"><span className="text-white/80">{action}</span><kbd className="px-2.5 py-1 rounded-lg bg-white/10 border border-white/15 text-white/90 font-mono text-[11px]">{keys}</kbd></div>)}</div></Card>)}</SettingsSection>}
+
+        {section === 'about' && <SettingsSection title="About Lumen" description="A multi-process Chromium browser with a local-first data store."><Card title="Lumen Browser"><div className="space-y-3 text-xs text-white/80 leading-relaxed"><p>Lumen uses Electron WebContentsView tabs, React chrome, and SQLite persistence.</p><div className="grid grid-cols-2 sm:grid-cols-4 gap-3">{[['Engine', 'Chromium'], ['Database', 'SQLite (WAL)'], ['UI layer', 'React + Tailwind'], ['Architecture', 'Multi-process']].map(([label, value]) => <div key={label} className="p-3 rounded-xl bg-white/[0.04] border border-white/10"><div className="text-[10px] text-white/40 uppercase font-semibold">{label}</div><div className="text-xs font-bold text-white mt-0.5">{value}</div></div>)}</div></div></Card></SettingsSection>}
       </main>
+      {status && <div className="absolute bottom-4 right-4 glass-panel px-4 py-2 text-xs text-white shadow-xl">{status}</div>}
     </div>
   );
 }
 
-/* ══════════════════════════════════════════════════════════════
- *  Reusable UI Helper Components
- * ══════════════════════════════════════════════════════════════ */
-
-function SettingsSection({
-  title,
-  description,
-  children,
-}: {
-  title: string;
-  description?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="space-y-4 animate-tab-enter">
-      <div>
-        <h1 className="text-xl font-bold text-white tracking-tight">{title}</h1>
-        {description && <p className="text-xs text-white/50 mt-1">{description}</p>}
-      </div>
-      <div className="space-y-4">{children}</div>
-    </div>
-  );
+function SettingsSection({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
+  return <div className="space-y-4 animate-tab-enter"><div><h1 className="text-xl font-bold text-white tracking-tight">{title}</h1>{description && <p className="text-xs text-white/50 mt-1">{description}</p>}</div><div className="space-y-4">{children}</div></div>;
 }
 
-function Card({
-  title,
-  description,
-  children,
-}: {
-  title: string;
-  description?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="bg-white/[0.03] backdrop-blur-xl border border-white/[0.08] hover:border-white/15 rounded-2xl p-6 shadow-xl space-y-3 transition-all">
-      <div>
-        <h3 className="text-sm font-semibold text-white">{title}</h3>
-        {description && <p className="text-xs text-white/50 mt-0.5">{description}</p>}
-      </div>
-      {children}
-    </div>
-  );
+function Card({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
+  return <div className="settings-card p-6 shadow-xl space-y-3"><div><h3 className="text-sm font-semibold text-white">{title}</h3>{description && <p className="text-xs text-white/50 mt-0.5">{description}</p>}</div>{children}</div>;
 }
 
-function ToggleRow({
-  label,
-  hint,
-  checked,
-  accentColor,
+function RangeRow({ label, value, min, max, current, onChange }: { label: string; value: string; min: number; max: number; current: number; onChange: (value: number) => void }) {
+  return <div className="pt-2"><div className="flex justify-between text-xs font-medium mb-2"><span className="text-white/80">{label}</span><span className="font-semibold text-white">{value}</span></div><input type="range" min={min} max={max} value={current} onChange={(event) => onChange(Number(event.target.value))} className="w-full cursor-pointer h-1.5 bg-white/10 rounded-lg" /></div>;
+}
+
+function ToggleRow({ label, hint, checked, onChange }: { label: string; hint?: string; checked: boolean; onChange: (value: boolean) => void }) {
+  return <div className="flex items-center justify-between py-1.5 gap-4"><div className="min-w-0"><div className="text-xs font-medium text-white">{label}</div>{hint && <div className="text-[11px] text-white/50 mt-0.5">{hint}</div>}</div><button type="button" role="switch" aria-checked={checked} onClick={() => onChange(!checked)} className="toggle-track w-10 h-5" data-checked={checked}><span className="toggle-thumb" /></button></div>;
+}
+
+function Stat({ label, value }: { label: string; value: number | string }) {
+  return <div className="p-3.5 rounded-xl bg-white/[0.04] border border-white/10 text-center"><div className="text-xl font-bold text-white">{value}</div><div className="text-[11px] text-white/50 mt-1">{label}</div></div>;
+}
+
+function formatBytes(n: number): string {
+  if (!n) return '—';
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 ** 2) return `${(n / 1024).toFixed(1)} KB`;
+  if (n < 1024 ** 3) return `${(n / 1024 ** 2).toFixed(1)} MB`;
+  return `${(n / 1024 ** 3).toFixed(2)} GB`;
+}
+
+function ThemedSelect({
+  value,
+  options,
   onChange,
+  fullWidth = false,
 }: {
-  label: string;
-  hint?: string;
-  checked: boolean;
-  accentColor: string;
-  onChange: (checked: boolean) => void;
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (value: string) => void;
+  fullWidth?: boolean;
 }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const selected = options.find((option) => option.value === value) ?? options[0];
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: MouseEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', close);
+    document.addEventListener('keydown', escape);
+    return () => {
+      document.removeEventListener('mousedown', close);
+      document.removeEventListener('keydown', escape);
+    };
+  }, [open]);
+
   return (
-    <div className="flex items-center justify-between py-1.5 gap-4">
-      <div className="min-w-0">
-        <div className="text-xs font-medium text-white">{label}</div>
-        {hint && <div className="text-[11px] text-white/50 mt-0.5">{hint}</div>}
-      </div>
+    <div ref={rootRef} className={`themed-select relative ${fullWidth ? 'w-full' : ''}`}>
       <button
         type="button"
-        role="switch"
-        aria-checked={checked}
-        onClick={() => onChange(!checked)}
-        className="w-11 h-6 rounded-full p-0.5 transition-colors duration-200 ease-out shrink-0"
-        style={{
-          backgroundColor: checked ? accentColor : 'rgba(255, 255, 255, 0.15)',
-        }}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+        className="settings-control flex items-center justify-between gap-5 px-3 py-1.5 rounded-xl border text-xs outline-none min-w-[150px]"
       >
-        <div
-          className={`w-5 h-5 rounded-full bg-white shadow-md transform transition-transform duration-200 ease-out ${
-            checked ? 'translate-x-5' : 'translate-x-0'
-          }`}
-        />
+        <span className="truncate">{selected?.label}</span>
+        <Icon name="chevron-down" size={13} strokeWidth={1.8} />
       </button>
+      {open && (
+        <div className="themed-select-menu absolute right-0 top-[calc(100%+6px)] z-[70] min-w-full p-1 rounded-xl border shadow-xl animate-menu-in" role="listbox">
+          {options.map((option) => (
+            <button
+              type="button"
+              role="option"
+              aria-selected={option.value === value}
+              key={option.value}
+              onClick={() => { onChange(option.value); setOpen(false); }}
+              className={`themed-select-option w-full px-3 py-2 rounded-lg text-left text-xs transition-colors ${option.value === value ? 'settings-selected font-semibold' : ''}`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

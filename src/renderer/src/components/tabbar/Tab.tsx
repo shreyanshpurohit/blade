@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { TabState } from '@shared/types';
 import { useBrowserStore } from '../../store/browserStore';
 import { Icon } from '../common/Icon';
@@ -88,7 +89,7 @@ export default function Tab({ tab, active, compact }: TabProps) {
       )}
 
       {/* Context menu */}
-      {menuOpen && (
+      {menuOpen && createPortal((
         <div
           className="fixed inset-0 z-50"
           onClick={(e) => {
@@ -97,6 +98,7 @@ export default function Tab({ tab, active, compact }: TabProps) {
           }}
           onContextMenu={(e) => {
             e.preventDefault();
+            e.stopPropagation();
             setMenuOpen(false);
           }}
         >
@@ -125,7 +127,7 @@ export default function Tab({ tab, active, compact }: TabProps) {
             />
           </div>
         </div>
-      )}
+      ), document.body)}
     </div>
   );
 }

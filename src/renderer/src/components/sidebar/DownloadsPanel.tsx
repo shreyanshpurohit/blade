@@ -1,8 +1,12 @@
+import { useState } from 'react';
 import { useBrowserStore } from '../../store/browserStore';
 import { api } from '../../lib/api';
+import type { DownloadItem } from '@shared/types';
+import { SidebarContextMenu } from './SidebarContextMenu';
 
 export function DownloadsPanel() {
   const downloads = useBrowserStore((s) => s.downloads);
+  const [context, setContext] = useState<{ x: number; y: number; download: DownloadItem } | null>(null);
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -11,7 +15,15 @@ export function DownloadsPanel() {
         <p className="text-ui-body px-2 py-6 text-center opacity-60">No downloads yet.</p>
       )}
       {downloads.map((d) => (
-        <div key={d.id} className="glass-control p-2.5 flex flex-col gap-1.5">
+        <div
+          key={d.id}
+          className="glass-control p-2.5 flex flex-col gap-1.5"
+          onContextMenu={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            setContext({ x: event.clientX, y: event.clientY, download: d });
+          }}
+        >
           <div className="flex items-center justify-between gap-2">
             <button
               onClick={() => d.state === 'completed' && void api.downloads.open(d.id)}
@@ -45,6 +57,17 @@ export function DownloadsPanel() {
           </div>
         </div>
       ))}
+      {context && (
+        <SidebarContextMenu
+          x={context.x}
+          y={context.y}
+          onClose={() => setContext(null)}
+          items={[
+            { label: 'Show in folder', icon: 'folder-open', disabled: context.download.state !== 'completed', onClick: () => void api.downloads.open(context.download.id) },
+            { label: 'Cancel download', icon: 'x', danger: true, disabled: !['progressing', 'paused'].includes(context.download.state), onClick: () => void api.downloads.cancel(context.download.id) },
+          ]}
+        />
+      )}
     </div>
   );
 }

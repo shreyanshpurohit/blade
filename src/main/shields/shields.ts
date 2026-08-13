@@ -260,6 +260,13 @@ export function installShieldsOnSession(ses: Electron.Session) {
 
     const requestHeaders = { ...details.requestHeaders };
 
+    if (getSetting('sendDoNotTrack', 'false') === 'true') {
+      requestHeaders.DNT = '1';
+    } else {
+      delete requestHeaders.DNT;
+      delete requestHeaders.dnt;
+    }
+
     if (cfg.cookieControl === 'blocked') {
       delete requestHeaders['Cookie'];
       delete requestHeaders['cookie'];

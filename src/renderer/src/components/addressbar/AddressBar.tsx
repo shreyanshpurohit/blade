@@ -18,17 +18,15 @@ export function AddressBar({ showTrafficLights = false }: AddressBarProps) {
     stop,
     activeTab,
     navigateActive,
-    createTab,
     setSidebar,
     sidebarOpen,
-    sidebarPanel,
     toggleBookmarkActive,
     activeBookmarked,
     appMenuOpen,
-    setAppMenuOpen,
-    toggleAppMenu,
   } = useBrowserStore();
   const incognito = useBrowserStore((s) => s.incognito);
+  const downloadPopupOpen = useBrowserStore((s) => s.downloadPopupOpen);
+  const toggleDownloadPopup = useBrowserStore((s) => s.toggleDownloadPopup);
 
   const tab = activeTab();
   const [value, setValue] = useState('');
@@ -36,6 +34,7 @@ export function AddressBar({ showTrafficLights = false }: AddressBarProps) {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [highlight, setHighlight] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
+  const omniboxRef = useRef<HTMLDivElement>(null);
   const appMenuBtnRef = useRef<HTMLButtonElement>(null);
 
   const activeUrl = tab?.url || '';
@@ -77,6 +76,7 @@ export function AddressBar({ showTrafficLights = false }: AddressBarProps) {
     navigateActive(raw.trim());
     setFocused(false);
     setSuggestions([]);
+    void api.app.hideSuggestions();
     inputRef.current?.blur();
   };
 
@@ -98,6 +98,7 @@ export function AddressBar({ showTrafficLights = false }: AddressBarProps) {
       setFocused(false);
       setSuggestions([]);
       setValue(displayUrl(tab?.url ?? ''));
+      void api.app.hideSuggestions();
     }
   };
 
@@ -120,6 +121,20 @@ export function AddressBar({ showTrafficLights = false }: AddressBarProps) {
   };
 
   const urlDisplay = formatUrlDisplay(value);
+  const hasSuggestions = focused && suggestions.length > 0;
+
+  useEffect(() => {
+    if (!hasSuggestions || !omniboxRef.current) {
+      void api.app.hideSuggestions();
+      return;
+    }
+    const rect = omniboxRef.current.getBoundingClientRect();
+    void api.app.showSuggestions({ x: rect.left, y: rect.bottom + 4, width: rect.width }, value.trim());
+  }, [hasSuggestions]);
+
+  useEffect(() => {
+    if (hasSuggestions) void api.app.updateSuggestions(value.trim());
+  }, [hasSuggestions, value]);
 
   return (
     <div className="relative px-6 py-2.5 flex items-center justify-between gap-4 drag-region select-none">
@@ -163,7 +178,7 @@ export function AddressBar({ showTrafficLights = false }: AddressBarProps) {
       </div>
 
       {/* ── Center Omnibox Pill ── */}
-      <div className="flex-1 max-w-2xl min-w-0 relative no-drag">
+      <div ref={omniboxRef} className="flex-1 max-w-2xl min-w-0 relative no-drag">
         <div
           className={`h-10 px-4 flex items-center gap-3 rounded-full backdrop-blur-xl border transition-all duration-200 shadow-lg ${
             focused
@@ -178,6 +193,12 @@ export function AddressBar({ showTrafficLights = false }: AddressBarProps) {
         >
           {/* URL Input / Display */}
           <div className="flex-1 min-w-0 relative flex items-center">
+            {incognito && (
+              <span className="incognito-badge mr-2 shrink-0" title="Private window">
+                <Icon name="eye-slash" size={12} strokeWidth={1.8} />
+                <span>Private</span>
+              </span>
+            )}
             {/* When not focused, render formatted URL with subtle path */}
             {!focused && (
               <div className="flex items-center pointer-events-none text-[13px] tracking-wide truncate max-w-full font-medium">
@@ -202,7 +223,10 @@ export function AddressBar({ showTrafficLights = false }: AddressBarProps) {
                 inputRef.current?.select();
               }}
               onBlur={() => {
-                setTimeout(() => setFocused(false), 200);
+                setTimeout(() => {
+                  setFocused(false);
+                  void api.app.hideSuggestions();
+                }, 200);
               }}
               onKeyDown={onKeyDown}
               placeholder="Search or enter website name..."
@@ -236,8 +260,8 @@ export function AddressBar({ showTrafficLights = false }: AddressBarProps) {
         </div>
 
         {/* Suggestions Dropdown */}
-        {focused && suggestions.length > 0 && (
-          <div className="absolute left-0 right-0 top-full mt-2 z-50 backdrop-blur-2xl border border-white/15 rounded-2xl p-2 shadow-2xl animate-menu-in" style={{ background: 'var(--glass-bar-bg, rgba(30, 25, 20, 0.95))' }}>
+        {false && hasSuggestions && (
+          <div className="absolute left-0 right-0 top-full mt-2 z-50 max-h-[280px] overflow-y-auto backdrop-blur-2xl border border-white/15 rounded-2xl p-2 shadow-2xl animate-menu-in" style={{ background: 'var(--glass-bar-bg, rgba(30, 25, 20, 0.95))' }}>
             {suggestions.map((s, i) => (
               <button
                 key={i}
@@ -292,20 +316,29 @@ export function AddressBar({ showTrafficLights = false }: AddressBarProps) {
           onClick={() => void toggleBookmarkActive()}
           className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
             activeBookmarked
-              ? 'bg-white/20 text-accent'
+              ? 'bg-white/20 text-[var(--color-text-primary)]'
               : 'text-white/70 hover:text-white hover:bg-white/10'
           }`}
         >
           <Icon name="bookmark" size={15} strokeWidth={1.8} />
         </button>
 
-        {/* New Tab Button */}
+        {/* Settings Button */}
         <button
-          title="New Tab (Ctrl+T)"
-          onClick={() => createTab()}
+          title="Settings (Ctrl+,)"
+          onClick={() => window.lumen.app.openSettings()}
           className="w-8 h-8 rounded-full flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 transition-all"
         >
-          <Icon name="plus" size={15} strokeWidth={2} />
+          <Icon name="gear" size={15} strokeWidth={2} />
+        </button>
+
+        {/* Downloads page */}
+        <button
+          title="Downloads (Ctrl+J)"
+          onClick={toggleDownloadPopup}
+          className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${downloadPopupOpen ? 'bg-white/20 text-white' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
+        >
+          <Icon name="download" size={15} strokeWidth={1.8} />
         </button>
 
         {/* Tab Overview / Menu Button */}

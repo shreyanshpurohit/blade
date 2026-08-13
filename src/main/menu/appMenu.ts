@@ -25,8 +25,8 @@ export function buildAppMenu() {
       label: 'View',
       submenu: [
         { label: 'Reload', accelerator: 'CmdOrCtrl+R', click: () => send('menu:reload') },
-        { label: 'Toggle Sidebar', accelerator: 'CmdOrCtrl+Shift+B', click: () => send('menu:toggleSidebar') },
-        { label: 'Toggle Bookmarks Bar', accelerator: 'CmdOrCtrl+Alt+B', click: () => send('menu:toggleBookmarksBar') },
+        { label: 'Toggle Sidebar', click: () => send('menu:toggleSidebar') },
+        { label: 'Toggle Bookmarks Bar', accelerator: 'CmdOrCtrl+Shift+B', click: () => send('menu:toggleBookmarksBar') },
         { label: 'Settings', accelerator: 'CmdOrCtrl+,', click: () => send('menu:settings') },
         { type: 'separator' },
         { label: 'Find in Page', accelerator: 'CmdOrCtrl+F', click: () => send('menu:find') },

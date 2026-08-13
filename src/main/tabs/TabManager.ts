@@ -1,13 +1,16 @@
-import { BrowserWindow, WebContentsView, session as electronSession } from 'electron';
+import { app, BrowserWindow, WebContentsView, session as electronSession, Menu, clipboard, dialog } from 'electron';
 import { randomUUID } from 'node:crypto';
-import { SIDEBAR_WIDTH } from '../windows/WindowManager';
+import { writeFile } from 'node:fs/promises';
+import path from 'node:path';
 import { IPC } from '../../shared/types';
 import type { TabState, TabGroupState, WindowState, SidebarPanel, SecurityState } from '../../shared/types';
-import { recordVisit, updateDwellTime } from '../store/history';
-import { getSetting } from '../store/database';
-import { WindowManager } from '../windows/WindowManager';
+import { clearHistory, recordVisit, updateDwellTime } from '../store/history';
+import { getSetting, setSetting } from '../store/database';
+import { toggleBookmark } from '../store/bookmarks';
+import { WindowManager, SIDEBAR_WIDTH } from '../windows/WindowManager';
 import { injectFingerprintProtection } from '../shields/fingerprint';
 import { installShieldsOnSession, COSMETIC_AD_BLOCK_CSS, getShieldsConfig } from '../shields/shields';
+import { recordCompletedDownload } from '../downloads';
 
 type Session = typeof electronSession.defaultSession;
 
@@ -44,10 +47,13 @@ export class TabManager {
   private groups: TabGroupState[] = [];
   activeTabId: string | null = null;
   sidebarOpen = false;
+  sidebarPinned = false;
   sidebarPanel: SidebarPanel = 'history';
   appMenuOpen = false;
-  private chromeHeight = 60; // Glassmorphic address bar height: 60px
+  private chromeHeight = 92 + (getSetting('bookmarksBarVisible', 'true') === 'true' ? 36 : 0);
   private hibernateTimers = new Map<string, NodeJS.Timeout>();
+  private closedTabs: string[] = [];
+  private userAgent = '';
 
   // Dwell tracking
   private activeUrl: string | null = null;
@@ -57,7 +63,15 @@ export class TabManager {
     this.win = win;
     this.ses = ses;
     this.incognito = incognito;
+    this.sidebarPinned = getSetting('sidebarPinned', 'false') === 'true';
+    this.userAgent = getSetting('devUserAgent', 'default');
     installShieldsOnSession(ses);
+    ses.setPermissionRequestHandler((webContents, permission, callback) => {
+      let origin = '';
+      try { origin = new URL(webContents.getURL()).origin; } catch { /* non-web URL */ }
+      const decision = origin ? getSetting(`permission:${origin}:${permission}`, 'ask') : 'ask';
+      callback(decision === 'allow');
+    });
 
     // Track window focus/blur for accurate dwell time estimation
     this.win.on('blur', () => {
@@ -78,7 +92,7 @@ export class TabManager {
     this.activeStartTime = Date.now();
   }
 
-  createTab(url?: string, opts: { activate?: boolean; pinned?: boolean } = {}): string {
+  createTab(url?: string, opts: { activate?: boolean; pinned?: boolean; afterId?: string } = {}): string {
     const id = randomUUID();
     const homepage = getSetting('homepage', 'lumen://newtab');
     const target = url ? normalizeUrl(url) : (homepage || NEW_TAB_URL);
@@ -102,7 +116,7 @@ export class TabManager {
       hibernatedUrl: null,
       state: {
         url: target,
-        title: isInternal ? (target.includes('settings') ? 'Settings' : 'History Terrain // New Tab') : 'Terminal Tab',
+        title: isInternal ? (target.includes('settings') ? 'Settings' : 'Lumen Home') : 'Terminal Tab',
         favicon: null,
         isLoading: false,
         canGoBack: false,
@@ -116,7 +130,10 @@ export class TabManager {
     };
 
     this.wireWebContents(tab);
-    this.tabs.push(tab);
+    this.applyUserAgent(tab.view.webContents);
+    const afterIndex = opts.afterId ? this.tabs.findIndex((candidate) => candidate.id === opts.afterId) : -1;
+    if (afterIndex >= 0) this.tabs.splice(afterIndex + 1, 0, tab);
+    else this.tabs.push(tab);
 
     this.loadUrl(tab, target);
 
@@ -143,7 +160,7 @@ export class TabManager {
     const isInternal = isInternalUrl(url);
     if (isInternal) {
       tab.state.url = url;
-      tab.state.title = url.includes('settings') ? 'Settings' : 'History Terrain // New Tab';
+      tab.state.title = url.includes('settings') ? 'Settings' : 'Lumen Home';
       tab.state.favicon = null;
       tab.state.isLoading = false;
       tab.state.securityState = 'internal';
@@ -262,38 +279,17 @@ export class TabManager {
         this.flushDwellTime();
       }
 
-      if (input.type !== 'keyDown') return;
-      const isCmdOrCtrl = input.control || input.meta;
-
-      if (isCmdOrCtrl && (input.key === '=' || input.key === '+' || input.key === 'Add')) {
-        this.zoomIn(tab.id);
-        event.preventDefault();
-      } else if (isCmdOrCtrl && (input.key === '-' || input.key === 'Subtract')) {
-        this.zoomOut(tab.id);
-        event.preventDefault();
-      } else if (isCmdOrCtrl && (input.key === '0' || input.key === 'Num0')) {
-        this.zoomReset(tab.id);
-        event.preventDefault();
-      } else if (isCmdOrCtrl && input.key.toLowerCase() === 'p') {
-        this.print(tab.id);
-        event.preventDefault();
-      } else if (input.key === 'F11') {
-        this.win.setFullScreen(!this.win.isFullScreen());
-        event.preventDefault();
-      } else if ((isCmdOrCtrl && input.shift && input.key.toLowerCase() === 'i') || input.key === 'F12') {
-        this.toggleDevTools(tab.id);
-        event.preventDefault();
-      } else if (isCmdOrCtrl && input.key.toLowerCase() === 'u') {
-        this.viewSource(tab.id);
-        event.preventDefault();
-      } else if (isCmdOrCtrl && input.key.toLowerCase() === 't') {
-        this.createTab();
-        event.preventDefault();
-      } else if (isCmdOrCtrl && input.key.toLowerCase() === 'w') {
-        this.closeTab(tab.id);
-        event.preventDefault();
-      }
+      this.handleBrowserShortcut(event, input, tab.id);
     });
+
+    wc.on('context-menu', (_event, params) => {
+      this.popupContextMenu(tab.id, params);
+    });
+
+    // Web sites such as YouTube use HTML fullscreen rather than F11. Hide
+    // browser chrome for that mode as well, then restore it on exit.
+    wc.on('enter-html-full-screen', () => this.setFullscreen(true));
+    wc.on('leave-html-full-screen', () => this.setFullscreen(false));
 
     // Handle new tabs opened by web content
     wc.setWindowOpenHandler(({ url }) => {
@@ -302,7 +298,7 @@ export class TabManager {
         return { action: 'deny' };
       }
       if (url.startsWith('http') || url.startsWith('file:')) {
-        this.createTab(url);
+        this.createTab(url, { afterId: tab.id });
       }
       return { action: 'deny' };
     });
@@ -353,6 +349,7 @@ export class TabManager {
         },
       });
       this.wireWebContents(tab);
+      this.applyUserAgent(tab.view.webContents);
       this.loadUrl(tab, targetUrl);
     }
 
@@ -367,7 +364,7 @@ export class TabManager {
     try {
       this.win.contentView.removeChildView(tab.view);
     } catch {
-      /* already detached */
+      // The view may already be detached or have been destroyed.
     }
   }
 
@@ -380,8 +377,16 @@ export class TabManager {
     }
 
     const [tab] = this.tabs.splice(idx, 1);
+    if (!isInternalUrl(tab.state.url)) {
+      this.closedTabs.unshift(tab.state.url);
+      this.closedTabs = this.closedTabs.slice(0, 10);
+    }
     this.clearHibernateTimer(id);
-    this.detachView(tab);
+    try {
+      this.win.contentView.removeChildView(tab.view);
+    } catch {
+      /* already detached */
+    }
     tab.view.webContents.close();
 
     if (this.tabs.length === 0) {
@@ -394,6 +399,94 @@ export class TabManager {
     } else {
       this.emitState();
     }
+  }
+
+  reopenClosedTab() {
+    const url = this.closedTabs.shift();
+    if (url) this.createTab(url);
+  }
+
+  /** Handle shortcuts from either the chrome renderer or the active tab view. */
+  handleBrowserShortcut(
+    event: { preventDefault: () => void },
+    input: { type: string; key: string; control: boolean; meta: boolean; shift: boolean; alt: boolean },
+    sourceTabId?: string,
+  ) {
+    if (input.type !== 'keyDown') return;
+
+    const key = input.key.toLowerCase();
+    const isCmdOrCtrl = input.control || input.meta;
+    const tabId = sourceTabId ?? this.activeTabId ?? undefined;
+    const active = this.tabs.find((tab) => tab.id === tabId);
+
+    if (isCmdOrCtrl && (input.key === '=' || input.key === '+' || input.key === 'Add')) {
+      this.zoomIn(tabId);
+    } else if (isCmdOrCtrl && (input.key === '-' || input.key === 'Subtract')) {
+      this.zoomOut(tabId);
+    } else if (isCmdOrCtrl && (input.key === '0' || input.key === 'Num0')) {
+      this.zoomReset(tabId);
+    } else if (isCmdOrCtrl && key === 't' && !input.shift) {
+      this.createTab();
+    } else if (isCmdOrCtrl && key === 'w' && !input.shift) {
+      if (tabId) this.closeTab(tabId);
+    } else if (isCmdOrCtrl && input.shift && key === 't') {
+      this.reopenClosedTab();
+    } else if (isCmdOrCtrl && key === 'r') {
+      if (active) {
+        if (input.shift) active.view.webContents.reloadIgnoringCache();
+        else active.view.webContents.reload();
+      }
+    } else if (isCmdOrCtrl && key === 'l') {
+      this.win.webContents.send('menu:focusAddressBar');
+    } else if (isCmdOrCtrl && key === 'f') {
+      this.win.webContents.send('menu:find');
+    } else if (isCmdOrCtrl && key === 's') {
+      this.win.webContents.send('menu:savePage');
+    } else if (isCmdOrCtrl && key === ',') {
+      this.openSettingsTab();
+    } else if (isCmdOrCtrl && input.shift && key === 'b') {
+      const visible = getSetting('bookmarksBarVisible', 'true') === 'true';
+      setSetting('bookmarksBarVisible', String(!visible));
+      this.win.webContents.send('menu:toggleBookmarksBar');
+    } else if (isCmdOrCtrl && key === 'd') {
+      if (active && active.state.url.startsWith('http')) {
+        toggleBookmark(active.state.title, active.state.url);
+        this.emitState();
+      }
+    } else if (isCmdOrCtrl && key === 'p') {
+      this.print(tabId);
+    } else if (input.key === 'F11') {
+      const fullscreen = !this.win.isFullScreen();
+      this.win.setFullScreen(fullscreen);
+      this.setFullscreen(fullscreen);
+    } else if ((isCmdOrCtrl && input.shift && key === 'i') || input.key === 'F12') {
+      this.toggleDevTools(tabId);
+    } else if (isCmdOrCtrl && input.shift && key === 'j') {
+      this.toggleDevTools(tabId, 'bottom');
+    } else if (isCmdOrCtrl && key === 'u') {
+      this.viewSource(tabId);
+    } else if (isCmdOrCtrl && key === 'n' && input.shift) {
+      WindowManager.createWindow({ incognito: true });
+    } else if (isCmdOrCtrl && key === 'n') {
+      WindowManager.createWindow({ incognito: false });
+    } else if (isCmdOrCtrl && input.shift && key === 'o') {
+      this.win.webContents.send('menu:openBookmarks');
+    } else if (isCmdOrCtrl && key === 'h') {
+      this.win.webContents.send('menu:openHistory');
+    } else if (isCmdOrCtrl && key === 'j') {
+      this.win.webContents.send('menu:openDownloads');
+    } else if (isCmdOrCtrl && input.shift && (key === 'delete' || key === 'backspace')) {
+      clearHistory(0);
+      void this.ses.clearStorageData();
+    } else if (isCmdOrCtrl && key >= '1' && key <= '9') {
+      const index = key === '9' ? this.tabs.length - 1 : Number(key) - 1;
+      const target = this.tabs[index];
+      if (target) this.activateTab(target.id);
+    } else {
+      return;
+    }
+
+    event.preventDefault();
   }
 
   navigate(id: string, url: string) {
@@ -413,6 +506,16 @@ export class TabManager {
 
   reload(id: string) {
     this.tabs.find((t) => t.id === id)?.view.webContents.reload();
+  }
+
+  reloadIgnoringCache(id: string) {
+    this.tabs.find((t) => t.id === id)?.view.webContents.reloadIgnoringCache();
+  }
+
+  findInPage(query: string, id?: string) {
+    if (!query.trim()) return;
+    const tab = this.tabs.find((candidate) => candidate.id === (id ?? this.activeTabId));
+    tab?.view.webContents.findInPage(query);
   }
 
   stop(id: string) {
@@ -455,16 +558,51 @@ export class TabManager {
   }
 
   private resetHibernateTimer(id: string) {
-    const mins = Number(getSetting('hibernateMinutes', '10')) || 10;
-    const hibernateMs = Math.max(1, mins) * 60 * 1000;
+    const mins = Number(getSetting('hibernateMinutes', '15'));
 
     for (const tab of this.tabs) {
       this.clearHibernateTimer(tab.id);
-      if (tab.id !== id && !tab.pinned && !tab.hibernated) {
-        const timer = setTimeout(() => this.hibernate(tab.id), hibernateMs);
+      if (mins > 0 && tab.id !== id && !tab.pinned && !tab.hibernated) {
+        const timer = setTimeout(() => this.hibernate(tab.id), mins * 60 * 1000);
         this.hibernateTimers.set(tab.id, timer);
       }
     }
+  }
+
+  refreshHibernateTimers() {
+    if (this.activeTabId) this.resetHibernateTimer(this.activeTabId);
+  }
+
+  setUserAgent(preset: string) {
+    const userAgents: Record<string, string> = {
+      default: '',
+      'safari-mac': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15',
+      'chrome-win': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      'firefox-linux': 'Mozilla/5.0 (X11; Linux x86_64; rv:125.0) Gecko/20100101 Firefox/125.0',
+      'iphone-ios': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+    };
+    this.userAgent = preset;
+    const userAgent = userAgents[preset] || this.ses.getUserAgent();
+    for (const tab of this.tabs) {
+      try {
+        tab.view.webContents.setUserAgent(userAgent);
+        if (!tab.hibernated && !isInternalUrl(tab.state.url)) {
+          tab.view.webContents.reload();
+        }
+      } catch {
+        /* tab may be hibernated or closing */
+      }
+    }
+  }
+
+  private applyUserAgent(webContents: Electron.WebContents) {
+    const userAgents: Record<string, string> = {
+      'safari-mac': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15',
+      'chrome-win': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      'firefox-linux': 'Mozilla/5.0 (X11; Linux x86_64; rv:125.0) Gecko/20100101 Firefox/125.0',
+      'iphone-ios': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+    };
+    webContents.setUserAgent(userAgents[this.userAgent] || this.ses.getUserAgent());
   }
 
   private clearHibernateTimer(id: string) {
@@ -491,8 +629,23 @@ export class TabManager {
     this.relayout();
   }
 
+  setFullscreen(fullscreen: boolean) {
+    this.chromeHeight = fullscreen
+      ? 0
+      : 92 + (getSetting('bookmarksBarVisible', 'true') === 'true' ? 36 : 0);
+    this.relayout();
+    this.emitState({ fullscreen });
+  }
+
   setAppMenuOpen(open: boolean) {
     this.appMenuOpen = open;
+    this.relayout();
+    this.emitState();
+  }
+
+  setSidebarPinned(pinned: boolean) {
+    this.sidebarPinned = pinned;
+    setSetting('sidebarPinned', String(pinned));
     this.relayout();
     this.emitState();
   }
@@ -502,7 +655,11 @@ export class TabManager {
     const active = this.tabs.find((t) => t.id === this.activeTabId);
     if (!active || active.hibernated || isInternalUrl(active.state.url)) return;
     const [width, height] = this.win.getContentSize();
-    const x = this.sidebarOpen ? SIDEBAR_WIDTH : 0;
+    // React chrome cannot paint above a WebContentsView. When an external page
+    // is active, reserve the sidebar column even when it is not pinned so the
+    // page cannot cover the open sidebar. Internal pages can still float.
+    const dockSidebar = this.sidebarOpen && (this.sidebarPinned || !isInternalUrl(active.state.url));
+    const x = dockSidebar ? SIDEBAR_WIDTH : 0;
     active.view.setBounds({
       x,
       y: this.chromeHeight,
@@ -521,6 +678,16 @@ export class TabManager {
     }));
   }
 
+  sessionUrls(): string[] {
+    const urls = this.tabStates()
+      .filter((tab) => tab.url && tab.url !== 'lumen://newtab' && tab.url !== 'about:newtab' && tab.url !== 'about:blank')
+      .map((tab) => tab.url);
+    const activeUrl = this.tabs.find((tab) => tab.id === this.activeTabId)?.state.url;
+    return activeUrl && urls.includes(activeUrl)
+      ? [activeUrl, ...urls.filter((url) => url !== activeUrl)]
+      : urls;
+  }
+
   groupStates(): TabGroupState[] {
     return this.groups;
   }
@@ -530,6 +697,21 @@ export class TabManager {
     const tab = this.tabs.find((t) => t.id === tabId);
     if (!tab) return 1.0;
     return tab.state.zoomFactor ?? 1.0;
+  }
+
+  performanceSnapshot() {
+    const active = this.tabs.find((tab) => tab.id === this.activeTabId);
+    const activePid = active && !active.hibernated ? active.view.webContents.getProcessId() : null;
+    const metrics = app.getAppMetrics();
+    const activeMetric = activePid ? metrics.find((metric) => metric.pid === activePid) : undefined;
+    const workingSet = metrics.reduce((total, metric) => total + (metric.memory?.workingSetSize ?? 0), 0);
+    return {
+      memoryMb: Math.round((workingSet / 1024) * 10) / 10,
+      cpuPercent: Math.round(metrics.reduce((total, metric) => total + (metric.cpu?.percentCPUUsage ?? 0), 0) * 10) / 10,
+      processCount: metrics.length,
+      tabCount: this.tabs.length,
+      activeTabCpuPercent: Math.round((activeMetric?.cpu?.percentCPUUsage ?? 0) * 10) / 10,
+    };
   }
 
   setZoom(factor: number, id?: string): number {
@@ -565,15 +747,142 @@ export class TabManager {
     return this.setZoom(1.0, id);
   }
 
-  print(id?: string) {
+  print(id?: string): Promise<boolean> {
     const tabId = id ?? this.activeTabId;
     const tab = this.tabs.find((t) => t.id === tabId);
-    if (!tab) return;
+    if (!tab) return Promise.resolve(false);
+    const target = tab && !isInternalUrl(tab.state.url) ? tab.view.webContents : this.win.webContents;
+    if (!target || target.isDestroyed()) return Promise.resolve(false);
+
+    return new Promise((resolve) => {
+      try {
+        target.print({ silent: false, printBackground: true }, (success, failureReason) => {
+          if (!success && failureReason) console.warn('[print] failed:', failureReason);
+          resolve(success);
+        });
+      } catch (error) {
+        console.warn('[print] unavailable:', error);
+        resolve(false);
+      }
+    });
+  }
+
+  async savePage(filePath: string, id?: string) {
+    const tab = this.tabs.find((candidate) => candidate.id === (id ?? this.activeTabId));
+    if (!tab || !filePath) return false;
     try {
-      tab.view.webContents.print();
+      await tab.view.webContents.savePage(filePath, 'HTMLComplete');
+      return true;
     } catch {
-      /* ignore */
+      return false;
     }
+  }
+
+  async savePageWithDialog(id?: string) {
+    const { filePath } = await dialog.showSaveDialog(this.win, {
+      defaultPath: 'page.html',
+      filters: [{ name: 'HTML page', extensions: ['html'] }],
+    });
+    return filePath ? this.savePage(filePath, id) : false;
+  }
+
+  private async saveResourceWithDialog(url: string, suggestedFilename = '') {
+    if (!url || /^(data|blob):/i.test(url)) return;
+    let fallback = suggestedFilename;
+    try {
+      fallback ||= path.basename(new URL(url).pathname) || 'download';
+    } catch {
+      fallback ||= 'download';
+    }
+    const { filePath } = await dialog.showSaveDialog(this.win, {
+      defaultPath: path.join(require('electron').app.getPath('downloads'), fallback),
+    });
+    if (!filePath) return;
+    try {
+      const response = await this.ses.fetch(url);
+      if (!response.ok) throw new Error(`Download failed: ${response.status}`);
+      const bytes = Buffer.from(await response.arrayBuffer());
+      await writeFile(filePath, bytes);
+      recordCompletedDownload(url, path.basename(filePath), filePath, bytes.byteLength);
+    } catch (error) {
+      console.error('Failed to save resource:', error);
+    }
+  }
+
+  showChromeContextMenu(x: number, y: number, editable = false) {
+    this.popupContextMenu(this.activeTabId ?? undefined, { isEditable: editable }, { x, y });
+  }
+
+  private popupContextMenu(
+    tabId?: string,
+    params: Partial<Electron.ContextMenuParams> = {},
+    position?: { x: number; y: number },
+  ) {
+    const tab = this.tabs.find((candidate) => candidate.id === tabId);
+    const wc = tab?.view.webContents ?? this.win.webContents;
+    const template: Electron.MenuItemConstructorOptions[] = [];
+
+    if (params.linkURL) {
+      template.push(
+        { label: 'Open link in new tab', click: () => this.createTab(params.linkURL, { afterId: tab?.id }) },
+        { label: 'Save link as…', click: () => void this.saveResourceWithDialog(params.linkURL ?? '', params.suggestedFilename) },
+        { label: 'Copy link address', click: () => clipboard.writeText(params.linkURL ?? '') },
+        { type: 'separator' },
+      );
+    }
+
+    if (params.mediaType === 'image' && params.srcURL) {
+      template.push(
+        { label: 'Open image in new tab', click: () => this.createTab(params.srcURL, { afterId: tab?.id }) },
+        { label: 'Save image as…', click: () => void this.saveResourceWithDialog(params.srcURL ?? '', params.suggestedFilename) },
+        { label: 'Copy image', enabled: typeof params.x === 'number' && typeof params.y === 'number', click: () => wc.copyImageAt(params.x ?? 0, params.y ?? 0) },
+        { label: 'Copy image address', click: () => clipboard.writeText(params.srcURL ?? '') },
+        { type: 'separator' },
+      );
+    } else if ((params.mediaType === 'audio' || params.mediaType === 'video') && params.srcURL) {
+      template.push(
+        { label: 'Open media in new tab', click: () => this.createTab(params.srcURL, { afterId: tab?.id }) },
+        { label: 'Save media as…', click: () => void this.saveResourceWithDialog(params.srcURL ?? '', params.suggestedFilename) },
+        { label: 'Copy media address', click: () => clipboard.writeText(params.srcURL ?? '') },
+        { type: 'separator' },
+      );
+    }
+
+    if (params.selectionText) {
+      template.push(
+        { label: 'Copy selection', click: () => clipboard.writeText(params.selectionText ?? '') },
+        { label: 'Search selection', click: () => this.createTab(params.selectionText) },
+        { type: 'separator' },
+      );
+    }
+
+    if (params.isEditable) {
+      template.push(
+        { label: 'Cut', click: () => wc.cut() },
+        { label: 'Copy', click: () => wc.copy() },
+        { label: 'Paste', click: () => wc.paste() },
+        { label: 'Select all', click: () => wc.selectAll() },
+        { type: 'separator' },
+      );
+    }
+
+    template.push(
+      { label: 'Back', accelerator: 'Alt+Left', enabled: !!tab?.state.canGoBack, click: () => tab && this.goBack(tab.id) },
+      { label: 'Forward', accelerator: 'Alt+Right', enabled: !!tab?.state.canGoForward, click: () => tab && this.goForward(tab.id) },
+      { label: 'Reload', accelerator: 'Ctrl+R', enabled: !!tab, click: () => tab && this.reload(tab.id) },
+      { type: 'separator' },
+      { label: 'Save as…', accelerator: 'Ctrl+S', enabled: !!tab && !isInternalUrl(tab.state.url), click: () => void this.savePageWithDialog(tab?.id) },
+      { label: 'Print…', accelerator: 'Ctrl+P', enabled: !!tab, click: () => this.print(tab?.id) },
+      { label: 'Cast…', enabled: false },
+      { type: 'separator' },
+      { label: 'View page source', accelerator: 'Ctrl+U', enabled: !!tab, click: () => this.viewSource(tab?.id) },
+      { label: 'Inspect', enabled: !!tab, click: () => tab && wc.inspectElement(params.x ?? 0, params.y ?? 0) },
+    );
+
+    Menu.buildFromTemplate(template).popup({
+      window: this.win,
+      ...(position ? { x: position.x, y: position.y } : {}),
+    });
   }
 
   toggleDevTools(id?: string, mode: 'right' | 'bottom' | 'detach' = 'right') {
@@ -658,6 +967,7 @@ export function normalizeUrl(input: string): string {
       ? 'lumen://settings'
       : 'lumen://newtab';
   }
+  if (/^view-source:/i.test(trimmed)) return trimmed;
   if (/^[a-z]+:\/\//i.test(trimmed)) return trimmed;
   // Looks like a domain?
   if (/^[\w-]+(\.[\w-]+)+(\/.*)?$/.test(trimmed) && !trimmed.includes(' ')) {

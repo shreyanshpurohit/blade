@@ -57,6 +57,18 @@ export function initDatabase() {
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS downloads (
+      id TEXT PRIMARY KEY,
+      url TEXT NOT NULL DEFAULT '',
+      filename TEXT NOT NULL,
+      path TEXT NOT NULL DEFAULT '',
+      total_bytes INTEGER NOT NULL DEFAULT 0,
+      received_bytes INTEGER NOT NULL DEFAULT 0,
+      state TEXT NOT NULL,
+      started_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_downloads_started ON downloads(started_at DESC);
   `);
 
   // Migrate existing tables if columns missing
@@ -113,4 +125,12 @@ export function setSetting(key: string, value: string) {
     db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value')
       .run(key, value);
   }
+}
+
+export function getSettingsByPrefix(prefix: string): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const [key, value] of settingsCache) {
+    if (key.startsWith(prefix)) result[key.slice(prefix.length)] = value;
+  }
+  return result;
 }

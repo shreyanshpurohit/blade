@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { TabState } from '@shared/types';
 import { useBrowserStore } from '../../store/browserStore';
 import { Icon } from '../common/Icon';
@@ -29,6 +30,7 @@ export function TabsPanel() {
 
   const openCtx = (e: React.MouseEvent, tab: TabState) => {
     e.preventDefault();
+    e.stopPropagation();
     setMenuPos({ x: e.clientX, y: e.clientY });
     setMenuTab(tab);
     setMenuOpen(true);
@@ -137,8 +139,8 @@ export function TabsPanel() {
       </div>
 
       {/* Context menu */}
-      {menuOpen && menuTab && (
-        <div className="fixed inset-0 z-50" onClick={closeCtx} onContextMenu={(e) => { e.preventDefault(); closeCtx(); }}>
+      {menuOpen && menuTab && createPortal((
+        <div className="fixed inset-0 z-50" onClick={closeCtx} onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); closeCtx(); }}>
           <div
             className="absolute glass-panel p-1.5 min-w-[180px] z-50 animate-menu-in"
             style={{ left: menuPos.x, top: menuPos.y }}
@@ -175,7 +177,7 @@ export function TabsPanel() {
             />
           </div>
         </div>
-      )}
+      ), document.body)}
     </div>
   );
 }
@@ -236,7 +238,7 @@ function TabItem({
       onContextMenu={(e) => onContextMenu(e, tab)}
       className={`group flex items-center gap-2.5 px-4 py-2 cursor-pointer transition-all duration-150
         ${isActive
-          ? 'bg-white/[0.10] border-l-2 border-[var(--color-accent,#e8c06a)]'
+          ? 'bg-white/[0.10] border-l-2 border-white'
           : 'border-l-2 border-transparent hover:bg-white/[0.05]'
         }
         ${dimmed ? 'opacity-50' : ''}

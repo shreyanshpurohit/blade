@@ -35,14 +35,16 @@ export interface WindowState {
   groups: TabGroupState[];
   activeTabId: string | null;
   sidebarOpen: boolean;
+  sidebarPinned: boolean;
   sidebarPanel: SidebarPanel;
   appMenuOpen?: boolean;
-  verticalTabs: boolean;
-  bookmarksBarVisible: boolean;
-  theme: 'light' | 'dark' | 'system';
+  bookmarksBarVisible?: boolean;
+  fullscreen: boolean;
+  theme?: 'light' | 'dark' | 'system';
+  colorTheme?: 'ember' | 'ocean' | 'forest' | 'violet' | 'rose';
 }
 
-export type SidebarPanel = 'tabs' | 'bookmarks' | 'history' | 'downloads' | 'shields' | 'extensions' | 'ai' | null;
+export type SidebarPanel = 'tabs' | 'bookmarks' | 'history' | 'downloads' | 'shields' | null;
 
 export interface BookmarkNode {
   id: number;
@@ -62,6 +64,13 @@ export interface HistoryEntry {
   visitedAt: number;
   visitCount: number;
   dwellMs?: number;
+}
+
+export interface StoredPassword {
+  id: number;
+  origin: string;
+  username: string;
+  createdAt: number;
 }
 
 export interface HistoryTerrainBucket {
@@ -122,11 +131,14 @@ export const IPC = {
   // renderer -> main (invoke)
   TabCreate: 'tab:create',
   TabClose: 'tab:close',
+  TabReopenClosed: 'tab:reopenClosed',
   TabActivate: 'tab:activate',
   TabNavigate: 'tab:navigate',
   TabGoBack: 'tab:goBack',
   TabGoForward: 'tab:goForward',
   TabReload: 'tab:reload',
+  TabReloadIgnoringCache: 'tab:reloadIgnoringCache',
+  TabFind: 'tab:find',
   TabStop: 'tab:stop',
   TabTogglePin: 'tab:togglePin',
   TabToggleMute: 'tab:toggleMute',
@@ -139,14 +151,13 @@ export const IPC = {
   TabZoomOut: 'tab:zoomOut',
   TabZoomReset: 'tab:zoomReset',
   TabPrint: 'tab:print',
+  TabSavePage: 'tab:savePage',
   TabToggleDevTools: 'tab:toggleDevTools',
   TabViewSource: 'tab:viewSource',
   GetState: 'app:getState',
   GetSuggestions: 'omnibox:suggestions',
   SetSidebar: 'app:setSidebar',
-  SetVerticalTabs: 'app:setVerticalTabs',
-  SetTheme: 'app:setTheme',
-  SetBookmarksBar: 'app:setBookmarksBar',
+  SetSidebarPinned: 'app:setSidebarPinned',
   WindowControl: 'window:control',
   WindowToggleFullscreen: 'window:toggleFullscreen',
   NewWindow: 'window:newWindow',
@@ -164,8 +175,13 @@ export const IPC = {
   OpenSettings: 'app:openSettings',
   SetChromeHeight: 'app:setChromeHeight',
   HistoryList: 'history:list',
+  HistoryRemove: 'history:remove',
   HistoryClear: 'history:clear',
   HistoryTerrain: 'history:terrain',
+  PasswordsList: 'passwords:list',
+  PasswordSave: 'passwords:save',
+  PasswordRemove: 'passwords:remove',
+  PerformanceSnapshot: 'performance:snapshot',
   DomainGroupsGet: 'domainGroups:get',
   DomainGroupsSet: 'domainGroups:set',
   DownloadsList: 'downloads:list',
@@ -175,8 +191,17 @@ export const IPC = {
   DownloadOpen: 'downloads:open',
   CapturePage: 'tools:capturePage',
   ShowAppMenu: 'app:showAppMenu',
+  ShowSuggestions: 'app:showSuggestions',
+  UpdateSuggestions: 'app:updateSuggestions',
+  HideSuggestions: 'app:hideSuggestions',
+  ShowDownloadPopup: 'app:showDownloadPopup',
+  ResizeDownloadPopup: 'app:resizeDownloadPopup',
+  HideDownloadPopup: 'app:hideDownloadPopup',
   SetAppMenuOpen: 'app:setAppMenuOpen',
+  ShowBookmarkContextMenu: 'app:showBookmarkContextMenu',
+  ShowContextMenu: 'app:showContextMenu',
   ClearBrowsingData: 'app:clearBrowsingData',
+  ClearCache: 'app:clearCache',
   AppExit: 'app:exit',
   ShieldsGetConfig: 'shields:getConfig',
   ShieldsSetConfig: 'shields:setConfig',
@@ -187,4 +212,6 @@ export const IPC = {
   // main -> renderer (events)
   StateChanged: 'event:stateChanged',
   DownloadsChanged: 'event:downloadsChanged',
+  SuggestionsChanged: 'event:suggestionsChanged',
+  DownloadPopupClosed: 'event:downloadPopupClosed',
 } as const;

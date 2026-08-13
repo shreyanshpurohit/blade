@@ -25,7 +25,6 @@ export function ShieldsSidebarPanel() {
   const [stats, setStats] = useState<ShieldsStats | null>(null);
   const activeTab = useBrowserStore((s) => s.activeTab());
   const openSettings = useBrowserStore((s) => s.openSettings);
-  const accentColor = useBrowserStore((s) => s.accentColor);
 
   const refresh = () => {
     void api.shields.getConfig().then((c) => setConfig(c as ShieldsConfig));
@@ -87,35 +86,18 @@ export function ShieldsSidebarPanel() {
       <div
         className={`p-4 rounded-2xl border transition-all duration-200 ${
           isEnabled
-            ? 'shadow-lg'
+            ? 'bg-white/[0.06] border-white/15 shadow-lg'
             : 'bg-red-500/10 border-red-400/30'
         }`}
-        style={
-          isEnabled
-            ? {
-                backgroundColor: `${accentColor}15`,
-                borderColor: `${accentColor}40`,
-              }
-            : undefined
-        }
       >
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-3">
             <div
               className={`w-9 h-9 rounded-xl grid place-items-center border transition-colors duration-200 ${
                 isEnabled
-                  ? 'border-transparent'
+                  ? 'bg-white/10 border-white/15 text-white'
                   : 'bg-red-500/20 border-red-500/40 text-red-300'
               }`}
-              style={
-                isEnabled
-                  ? {
-                      backgroundColor: `${accentColor}25`,
-                      borderColor: `${accentColor}50`,
-                      color: accentColor,
-                    }
-                  : undefined
-              }
             >
               <Icon name={isEnabled ? 'shield-check' : 'shield-x'} size={18} strokeWidth={2} />
             </div>
@@ -135,22 +117,16 @@ export function ShieldsSidebarPanel() {
             role="switch"
             aria-checked={isEnabled}
             onClick={toggleShields}
-            className="w-10 h-5 rounded-full p-0.5 transition-colors duration-200 ease-out shrink-0"
-            style={{
-              backgroundColor: isEnabled ? accentColor : 'rgba(255, 255, 255, 0.2)',
-            }}
+            className="toggle-track w-10 h-5"
+            data-checked={isEnabled}
           >
-            <div
-              className={`w-4 h-4 rounded-full bg-white shadow-md transform transition-transform duration-200 ease-out ${
-                isEnabled ? 'translate-x-5' : 'translate-x-0'
-              }`}
-            />
+            <span className="toggle-thumb" />
           </button>
         </div>
 
         {isEnabled ? (
           <div className="flex items-baseline gap-2 pt-2.5 border-t border-white/10">
-            <span className="text-2xl font-bold tracking-tight" style={{ color: accentColor }}>
+            <span className="text-2xl font-bold tracking-tight text-white">
               {totalBlocked}
             </span>
             <span className="text-[11px] text-white/60">
@@ -167,10 +143,10 @@ export function ShieldsSidebarPanel() {
       {/* ── Live Stats ── */}
       {isEnabled && (
         <div className="grid grid-cols-2 gap-2">
-          <StatBox label="Ads Blocked" value={stats.adsBlocked} icon="shield" accentColor={accentColor} />
-          <StatBox label="Trackers" value={stats.trackersBlocked} icon="eye-slash" accentColor={accentColor} />
-          <StatBox label="HTTPS Upgrades" value={stats.httpsUpgrades} icon="lock" accentColor={accentColor} />
-          <StatBox label="Fingerprints" value={stats.fingerprintsBlocked} icon="fingerprint" accentColor={accentColor} />
+          <StatBox label="Ads Blocked" value={stats.adsBlocked} icon="shield" />
+          <StatBox label="Trackers" value={stats.trackersBlocked} icon="eye-slash" />
+          <StatBox label="HTTPS Upgrades" value={stats.httpsUpgrades} icon="lock" />
+          <StatBox label="Fingerprints" value={stats.fingerprintsBlocked} icon="fingerprint" />
         </div>
       )}
 
@@ -184,7 +160,6 @@ export function ShieldsSidebarPanel() {
           label="Ad & Tracker Blocking"
           desc="Blocks display ads and beacons"
           enabled={config.adBlockEnabled}
-          accentColor={accentColor}
           onChange={(v) => {
             updateConfig('adBlock', String(v));
             updateConfig('trackerBlock', String(v));
@@ -195,7 +170,6 @@ export function ShieldsSidebarPanel() {
           label="HTTPS Everywhere"
           desc="Auto-upgrade unencrypted HTTP"
           enabled={config.httpsUpgrade}
-          accentColor={accentColor}
           onChange={(v) => updateConfig('httpsUpgrade', String(v))}
         />
 
@@ -206,23 +180,14 @@ export function ShieldsSidebarPanel() {
             </div>
             <div className="text-[10px] text-white/50">Canvas & Audio spoofing</div>
           </div>
-          <div className="flex rounded-lg bg-white/10 p-0.5 gap-0.5 border border-white/10">
+          <div className="theme-segmented-control flex rounded-lg p-0.5 gap-0.5">
             {(['off', 'standard', 'aggressive'] as const).map((m) => {
               const active = config.fingerprintProtection === m;
               return (
                 <button
                   key={m}
                   onClick={() => updateConfig('fingerprint', m)}
-                  className="px-2 py-0.5 text-[10px] font-medium rounded-md capitalize transition-all"
-                  style={
-                    active
-                      ? {
-                          backgroundColor: accentColor,
-                          color: '#000000',
-                          fontWeight: 600,
-                        }
-                      : { color: 'rgba(255, 255, 255, 0.6)' }
-                  }
+                  className={`theme-segmented-option px-2 py-0.5 text-[10px] font-medium rounded-md capitalize transition-all ${active ? 'is-active' : ''}`}
                 >
                   {m}
                 </button>
@@ -238,23 +203,14 @@ export function ShieldsSidebarPanel() {
             </div>
             <div className="text-[10px] text-white/50">Cross-site tracking cookies</div>
           </div>
-          <div className="flex rounded-lg bg-white/10 p-0.5 gap-0.5 border border-white/10">
+          <div className="theme-segmented-control flex rounded-lg p-0.5 gap-0.5">
             {(['all', 'cross-site', 'blocked'] as const).map((c) => {
               const active = config.cookieControl === c;
               return (
                 <button
                   key={c}
                   onClick={() => updateConfig('cookies', c)}
-                  className="px-2 py-0.5 text-[10px] font-medium rounded-md transition-all"
-                  style={
-                    active
-                      ? {
-                          backgroundColor: accentColor,
-                          color: '#000000',
-                          fontWeight: 600,
-                        }
-                      : { color: 'rgba(255, 255, 255, 0.6)' }
-                  }
+                  className={`theme-segmented-option px-2 py-0.5 text-[10px] font-medium rounded-md transition-all ${active ? 'is-active' : ''}`}
                 >
                   {c === 'all' ? 'All' : c === 'cross-site' ? '3rd-party' : 'Block'}
                 </button>
@@ -280,16 +236,14 @@ function StatBox({
   label,
   value,
   icon,
-  accentColor,
 }: {
   label: string;
   value: number;
   icon: string;
-  accentColor: string;
 }) {
   return (
     <div className="p-3 rounded-xl bg-white/[0.04] border border-white/10 flex items-center gap-3">
-      <span className="shrink-0" style={{ color: accentColor }}>
+      <span className="shrink-0 text-white">
         <Icon name={icon as IconName} size={15} />
       </span>
       <div className="min-w-0">
@@ -306,13 +260,11 @@ function ToggleRow({
   label,
   desc,
   enabled,
-  accentColor,
   onChange,
 }: {
   label: string;
   desc: string;
   enabled: boolean;
-  accentColor: string;
   onChange: (v: boolean) => void;
 }) {
   return (
@@ -326,16 +278,10 @@ function ToggleRow({
         role="switch"
         aria-checked={enabled}
         onClick={() => onChange(!enabled)}
-        className="w-9 h-5 rounded-full p-0.5 transition-colors duration-200 ease-out shrink-0"
-        style={{
-          backgroundColor: enabled ? accentColor : 'rgba(255, 255, 255, 0.2)',
-        }}
+        className="toggle-track w-10 h-5"
+        data-checked={enabled}
       >
-        <div
-          className={`w-4 h-4 rounded-full bg-white shadow-md transform transition-transform duration-200 ease-out ${
-            enabled ? 'translate-x-4' : 'translate-x-0'
-          }`}
-        />
+        <span className="toggle-thumb" />
       </button>
     </div>
   );

@@ -3,10 +3,13 @@ import { api } from '../../lib/api';
 import type { BookmarkNode } from '@shared/types';
 import { useBrowserStore } from '../../store/browserStore';
 import { Icon } from '../common/Icon';
+import { SidebarContextMenu } from './SidebarContextMenu';
 
 export function BookmarksPanel() {
   const [bookmarks, setBookmarks] = useState<BookmarkNode[]>([]);
+  const [context, setContext] = useState<{ x: number; y: number; bookmark: BookmarkNode } | null>(null);
   const navigateActive = useBrowserStore((s) => s.navigateActive);
+  const createTab = useBrowserStore((s) => s.createTab);
 
   const refresh = () => {
     void api.bookmarks.list().then((b) => setBookmarks(b as BookmarkNode[]));
@@ -28,7 +31,15 @@ export function BookmarksPanel() {
         </p>
       )}
       {bookmarks.map((b) => (
-        <div key={b.id} className="group flex items-center gap-2 px-2 py-1.5 rounded-glass-sm hover:bg-black/[0.05] dark:hover:bg-white/[0.07] transition-colors duration-150">
+        <div
+          key={b.id}
+          className="group flex items-center gap-2 px-2 py-1.5 rounded-glass-sm hover:bg-black/[0.05] dark:hover:bg-white/[0.07] transition-colors duration-150"
+          onContextMenu={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            setContext({ x: event.clientX, y: event.clientY, bookmark: b });
+          }}
+        >
           <button className="flex-1 min-w-0 text-left" onClick={() => navigateActive(b.url!)}>
             <div className="text-[13px] font-medium text-[var(--color-text-primary)] truncate">{b.title}</div>
             <div className="text-[11px] text-[var(--color-text-secondary)] truncate">{b.url}</div>
@@ -41,6 +52,18 @@ export function BookmarksPanel() {
           </button>
         </div>
       ))}
+      {context && context.bookmark.url && (
+        <SidebarContextMenu
+          x={context.x}
+          y={context.y}
+          onClose={() => setContext(null)}
+          items={[
+            { label: 'Open in new tab', icon: 'plus', onClick: () => createTab(context.bookmark.url ?? undefined) },
+            { label: 'Open here', icon: 'external', onClick: () => navigateActive(context.bookmark.url ?? '') },
+            { label: 'Delete bookmark', icon: 'trash', danger: true, onClick: () => void api.bookmarks.remove(context.bookmark.id).then(refresh) },
+          ]}
+        />
+      )}
     </div>
   );
 }

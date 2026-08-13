@@ -211,3 +211,10 @@ export function clearHistory(since = 0) {
   recentVisits.clear();
   getDb().prepare('DELETE FROM history WHERE visited_at >= ?').run(since);
 }
+
+export function removeHistoryEntry(id: number) {
+  const db = getDb();
+  const row = db.prepare('SELECT url FROM history WHERE id = ?').get(id) as { url: string } | undefined;
+  if (row) recentVisits.delete(row.url);
+  db.prepare('DELETE FROM history WHERE id = ?').run(id);
+}
