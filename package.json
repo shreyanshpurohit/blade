@@ -1,6 +1,6 @@
 {
   "name": "lumen-browser",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A glassmorphic desktop web browser — macOS vibrancy UI on Electron/Chromium",
   "main": "out/main/index.cjs",
   "type": "module",
