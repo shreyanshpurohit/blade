@@ -163,8 +163,15 @@ export class TabManager {
     this.wireWebContents(tab);
     this.applyUserAgent(tab.view.webContents);
     const afterIndex = opts.afterId ? this.tabs.findIndex((candidate) => candidate.id === opts.afterId) : -1;
-    if (afterIndex >= 0) this.tabs.splice(afterIndex + 1, 0, tab);
-    else this.tabs.push(tab);
+    if (afterIndex >= 0) {
+      const parentTab = this.tabs[afterIndex];
+      if (parentTab?.groupId) {
+        tab.groupId = parentTab.groupId;
+      }
+      this.tabs.splice(afterIndex + 1, 0, tab);
+    } else {
+      this.tabs.push(tab);
+    }
 
     this.loadUrl(tab, target);
 
@@ -644,7 +651,16 @@ export class TabManager {
     const from = this.tabs.findIndex((t) => t.id === id);
     if (from === -1) return;
     const [tab] = this.tabs.splice(from, 1);
-    this.tabs.splice(Math.max(0, Math.min(toIndex, this.tabs.length)), 0, tab);
+    const targetIdx = Math.max(0, Math.min(toIndex, this.tabs.length));
+    this.tabs.splice(targetIdx, 0, tab);
+
+    const prev = this.tabs[targetIdx - 1];
+    const next = this.tabs[targetIdx + 1];
+    if (prev?.groupId && next?.groupId && prev.groupId === next.groupId) {
+      tab.groupId = prev.groupId;
+    }
+
+    this.sanitizeGroupContiguity();
     this.emitState();
   }
 
@@ -1148,11 +1164,29 @@ export class TabManager {
     this.createTab(`view-source:${tab.state.url}`);
   }
 
+  private sanitizeGroupContiguity() {
+    for (const group of this.groups) {
+      const indices = this.tabs
+        .map((t, idx) => (t.groupId === group.id ? idx : -1))
+        .filter((idx) => idx !== -1);
+      if (indices.length >= 2) {
+        const minIdx = Math.min(...indices);
+        const maxIdx = Math.max(...indices);
+        for (let i = minIdx + 1; i < maxIdx; i++) {
+          if (!this.tabs[i].groupId) {
+            this.tabs[i].groupId = group.id;
+          }
+        }
+      }
+    }
+  }
+
   private pendingEmit = false;
   private pendingOverrides: Partial<WindowState> = {};
 
   emitState(overrides: Partial<WindowState> = {}) {
     if (this.win.isDestroyed()) return;
+    this.sanitizeGroupContiguity();
     Object.assign(this.pendingOverrides, overrides);
 
     if (!this.pendingEmit) {

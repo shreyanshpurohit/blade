@@ -121,10 +121,16 @@ export function TabBar() {
       }
       moveTab(sourceId, sourceIdx < targetIdx ? targetIdx : targetIdx + 1);
     } else if (currentDropPos === 'left') {
+      if (targetTab.groupId) {
+        addTabToGroup(sourceId, targetTab.groupId);
+      }
       const destIdx = sourceIdx < targetIdx ? targetIdx : targetIdx;
       moveTab(sourceId, destIdx);
     } else {
       // 'right'
+      if (targetTab.groupId) {
+        addTabToGroup(sourceId, targetTab.groupId);
+      }
       const destIdx = sourceIdx < targetIdx ? targetIdx : targetIdx + 1;
       moveTab(sourceId, destIdx);
     }

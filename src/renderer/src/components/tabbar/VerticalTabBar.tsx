@@ -160,10 +160,16 @@ export function VerticalTabBar() {
       }
       moveTab(sourceId, sourceIdx < targetIdx ? targetIdx : targetIdx + 1);
     } else if (currentDropPos === 'top') {
+      if (targetTab.groupId) {
+        addTabToGroup(sourceId, targetTab.groupId);
+      }
       const destIdx = sourceIdx < targetIdx ? targetIdx : targetIdx;
       moveTab(sourceId, destIdx);
     } else {
       // 'bottom'
+      if (targetTab.groupId) {
+        addTabToGroup(sourceId, targetTab.groupId);
+      }
       const destIdx = sourceIdx < targetIdx ? targetIdx : targetIdx + 1;
       moveTab(sourceId, destIdx);
     }
