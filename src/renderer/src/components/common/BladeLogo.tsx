@@ -15,15 +15,15 @@ export function BladeLogo({ className = 'w-6 h-6', size, alt = 'Blade' }: BladeL
       className={`inline-flex items-center justify-center relative shrink-0 select-none ${className}`}
       style={style}
     >
-      {/* Light appearance: dark logo paths (logoForLight) */}
+      {/* Light appearance: logoForDark */}
       <img
-        src={logoForLight}
+        src={logoForDark}
         alt={alt}
         className="w-full h-full object-contain pointer-events-none hidden [html[data-appearance='light']_&]:block"
       />
-      {/* Dark / Default appearance: white logo paths (logoForDark) */}
+      {/* Dark / Default appearance: logoForLight */}
       <img
-        src={logoForDark}
+        src={logoForLight}
         alt={alt}
         className="w-full h-full object-contain pointer-events-none block [html[data-appearance='light']_&]:hidden"
       />

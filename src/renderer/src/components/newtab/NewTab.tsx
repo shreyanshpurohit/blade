@@ -114,11 +114,8 @@ export function NewTab() {
         background: 'var(--newtab-bg)',
       }}
     >
-      {/* ── Brand Logo, Clock & Greeting ── */}
+      {/* ── Clock & Greeting ── */}
       <div className="flex flex-col items-center mb-10 animate-fade-in">
-        <div className="mb-4">
-          <BladeLogo className="w-16 h-16 hover:scale-105 transition-transform duration-300" />
-        </div>
         <time className="text-[64px] font-semibold tracking-tight text-white/90 leading-none tabular-nums">
           {formatTime(time)}
         </time>
@@ -127,11 +124,11 @@ export function NewTab() {
         </p>
       </div>
 
-      {/* ── Search Bar ── */}
+      {/* ── Search Bar with Blade Logo ── */}
       <form onSubmit={handleSearch} className="w-full max-w-[540px] px-6 mb-12 animate-fade-in-delay">
-        <div className="relative group">
-          <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30 group-focus-within:text-white/60 transition-colors">
-            <Icon name="search" size={18} strokeWidth={1.8} />
+        <div className="relative group flex items-center">
+          <div className="absolute left-3.5 top-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none transition-transform duration-200 group-focus-within:scale-105">
+            <BladeLogo className="w-5 h-5 opacity-70 group-focus-within:opacity-100 transition-opacity" />
           </div>
           <input
             ref={searchRef}
@@ -141,7 +138,7 @@ export function NewTab() {
             placeholder="Search or enter a URL..."
             spellCheck={false}
             autoComplete="off"
-            className="w-full h-12 pl-11 pr-4 rounded-2xl
+            className="w-full h-12 pl-12 pr-4 rounded-2xl
               bg-white/[0.06] backdrop-blur-xl
               border border-white/[0.08] group-focus-within:border-white/20
               text-[15px] text-white/90 font-medium placeholder:text-white/25
