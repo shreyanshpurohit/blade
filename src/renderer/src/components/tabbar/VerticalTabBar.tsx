@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import type { TabState } from '@shared/types';
+import type { TabState, TabGroupState } from '@shared/types';
 import { useBrowserStore } from '../../store/browserStore';
 import { Icon } from '../common/Icon';
 import { BladeLogo } from '../common/BladeLogo';
+import { TabGroupMenuPopup } from './TabGroupMenuPopup';
 import { api } from '../../lib/api';
 
 const DEFAULT_WIDTH = 240;
@@ -21,7 +22,15 @@ export function VerticalTabBar() {
     moveTab,
     addTabToGroup,
     createGroup,
+    toggleGroupCollapse,
+    newTabInGroup,
   } = useBrowserStore();
+
+  const [activeGroupMenu, setActiveGroupMenu] = useState<{
+    group: TabGroupState;
+    anchorPos?: { x: number; y: number };
+    anchorRect?: DOMRect;
+  } | null>(null);
 
   const [width, setWidth] = useState(() => {
     const saved = localStorage.getItem('lumen_vertical_tabs_width');
@@ -257,10 +266,24 @@ export function VerticalTabBar() {
               const group = tab.groupId ? groups.find((g) => g.id === tab.groupId) : undefined;
               const isFirstInGroup = group && !seenGroupIds.has(group.id);
               if (group) seenGroupIds.add(group.id);
+
+              const isCollapsed = group?.collapsed && tab.id !== activeTabId;
+              const groupTabCount = group ? regularTabs.filter((t) => t.groupId === group.id).length : 0;
+
               return (
                 <div key={tab.id} className="space-y-0.5">
                   {isFirstInGroup && group && (
                     <div
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        setActiveGroupMenu({ group, anchorRect: rect });
+                      }}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setActiveGroupMenu({ group, anchorPos: { x: e.clientX, y: e.clientY } });
+                      }}
                       onDragOver={(e) => {
                         e.preventDefault();
                         e.dataTransfer.dropEffect = 'move';
@@ -279,39 +302,86 @@ export function VerticalTabBar() {
                         setDragOverId(null);
                         setDropPos(null);
                       }}
-                      className="tab-group-chip px-2 py-1 flex items-center gap-1.5 rounded-lg text-[10px] font-semibold tracking-wide select-none cursor-pointer"
+                      className="group/grp mt-2 mb-1 px-2 py-1.5 flex items-center justify-between rounded-xl select-none cursor-pointer transition-all hover:bg-white/[0.06] border border-transparent hover:border-white/10"
                       style={{
                         '--group-color': group.color,
-                        backgroundColor: `color-mix(in srgb, ${group.color} 14%, transparent)`,
-                        color: group.color,
-                        borderLeft: `2.5px solid ${group.color}`,
                       } as React.CSSProperties}
-                      title={`${group.name} — drop tab here to add`}
+                      title={`${group.name} (${groupTabCount}) — Click to configure, drop tab here to add`}
                     >
-                      <span>{group.name}</span>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleGroupCollapse(group.id);
+                          }}
+                          className="w-4 h-4 rounded flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-colors"
+                          title={group.collapsed ? 'Expand group' : 'Collapse group'}
+                        >
+                          <Icon
+                            name={group.collapsed ? 'chevron-right' : 'chevron-down'}
+                            size={11}
+                            strokeWidth={2}
+                          />
+                        </button>
+                        <span
+                          className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm"
+                          style={{ backgroundColor: group.color }}
+                        />
+                        <span className="text-[11.5px] font-semibold text-white/90 truncate max-w-[120px]">
+                          {group.name}
+                        </span>
+                        <span className="text-[10px] font-medium text-white/50 px-1.5 py-0.2 rounded-full bg-white/[0.08]">
+                          {groupTabCount}
+                        </span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          newTabInGroup(group.id);
+                        }}
+                        className="w-5 h-5 rounded-md flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 opacity-0 group-hover/grp:opacity-100 transition-all"
+                        title="New tab in group"
+                      >
+                        <Icon name="plus" size={12} strokeWidth={2} />
+                      </button>
                     </div>
                   )}
-                  <VerticalTabItem
-                    tab={tab}
-                    isActive={tab.id === activeTabId}
-                    domain={getDomain(tab.url)}
-                    onActivate={activateTab}
-                    onClose={closeTab}
-                    onToggleMute={toggleMute}
-                    onContextMenu={openCtx}
-                    onDragStart={handleDragStart}
-                    onDragOver={handleDragOver}
-                    onDragLeave={handleDragLeave}
-                    onDrop={handleDrop}
-                    onDragEnd={handleDragEnd}
-                    isDragging={draggingId === tab.id}
-                    dropPosition={dragOverId === tab.id ? dropPos : null}
-                  />
+
+                  {!isCollapsed && (
+                    <VerticalTabItem
+                      tab={tab}
+                      isActive={tab.id === activeTabId}
+                      domain={getDomain(tab.url)}
+                      onActivate={activateTab}
+                      onClose={closeTab}
+                      onToggleMute={toggleMute}
+                      onContextMenu={openCtx}
+                      onDragStart={handleDragStart}
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleDragLeave}
+                      onDrop={handleDrop}
+                      onDragEnd={handleDragEnd}
+                      isDragging={draggingId === tab.id}
+                      dropPosition={dragOverId === tab.id ? dropPos : null}
+                    />
+                  )}
                 </div>
               );
             });
           })()}
         </div>
+
+        {activeGroupMenu && (
+          <TabGroupMenuPopup
+            group={activeGroupMenu.group}
+            anchorRect={activeGroupMenu.anchorRect}
+            anchorPos={activeGroupMenu.anchorPos}
+            onClose={() => setActiveGroupMenu(null)}
+          />
+        )}
 
         {/* Empty space filler for convenient right-click / double-click */}
         <div className="h-24 w-full cursor-default" onContextMenu={openEmptyCtx} />

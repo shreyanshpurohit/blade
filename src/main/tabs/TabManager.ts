@@ -1242,6 +1242,65 @@ export class TabManager {
     this.emitState();
   }
 
+  toggleGroupCollapse(groupId: string) {
+    const g = this.groups.find((group) => group.id === groupId);
+    if (g) {
+      g.collapsed = !g.collapsed;
+      this.emitState();
+    }
+  }
+
+  closeGroup(groupId: string) {
+    const tabsInGroup = this.tabs.filter((t) => t.groupId === groupId);
+    for (const tab of tabsInGroup) {
+      this.closeTab(tab.id);
+    }
+    this.groups = this.groups.filter((g) => g.id !== groupId);
+    this.emitState();
+  }
+
+  newTabInGroup(groupId: string, url = 'blade://newtab') {
+    const lastTabInGroup = [...this.tabs].reverse().find((t) => t.groupId === groupId);
+    const newTabId = this.createTab(url, {
+      activate: true,
+      afterId: lastTabInGroup?.id,
+    });
+    this.addTabToGroup(newTabId, groupId);
+    return newTabId;
+  }
+
+  moveGroupToNewWindow(groupId: string) {
+    const g = this.groups.find((group) => group.id === groupId);
+    const tabsInGroup = this.tabs.filter((t) => t.groupId === groupId);
+    if (tabsInGroup.length === 0) return;
+
+    const urls = tabsInGroup.map((t) => t.state.url);
+    const groupName = g ? g.name : 'Group';
+    const groupColor = g ? g.color : '#60a5fa';
+
+    // Close in current window
+    for (const tab of tabsInGroup) {
+      this.closeTab(tab.id);
+    }
+    this.groups = this.groups.filter((group) => group.id !== groupId);
+    this.emitState();
+
+    // Create in new window
+    const newWin = WindowManager.createWindow({ incognito: false });
+    const newTm = WindowManager.tabManagerFor(newWin.id);
+    if (newTm) {
+      setTimeout(() => {
+        const createdTabIds: string[] = [];
+        for (let i = 0; i < urls.length; i++) {
+          const id = i === 0 && newTm.tabs.length > 0 ? newTm.tabs[0].id : newTm.createTab(urls[i]);
+          if (i === 0 && newTm.tabs.length > 0) newTm.navigate(id, urls[i]);
+          createdTabIds.push(id);
+        }
+        newTm.createGroup(groupName, groupColor, createdTabIds);
+      }, 200);
+    }
+  }
+
   destroyAll() {
     this.flushDwellTime();
     for (const t of this.tabs) {

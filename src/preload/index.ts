@@ -52,6 +52,14 @@ const api = {
       invoke(IPC.TabGroupSetColor, groupId, color),
     delete: (groupId: string) =>
       invoke(IPC.TabGroupDelete, groupId),
+    toggleCollapse: (groupId: string) =>
+      invoke(IPC.TabGroupToggleCollapse, groupId),
+    closeGroup: (groupId: string) =>
+      invoke(IPC.TabGroupCloseTabs, groupId),
+    newTab: (groupId: string, url?: string) =>
+      invoke(IPC.TabGroupNewTab, groupId, url),
+    moveToNewWindow: (groupId: string) =>
+      invoke(IPC.TabGroupMoveToNewWindow, groupId),
   },
   app: {
     getState: () => invoke(IPC.GetState),

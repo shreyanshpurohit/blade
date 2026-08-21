@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import type { TabState } from '@shared/types';
+import type { TabState, TabGroupState } from '@shared/types';
 import { useBrowserStore } from '../../store/browserStore';
 import Tab from './Tab';
 import { Icon } from '../common/Icon';
+import { TabGroupMenuPopup } from './TabGroupMenuPopup';
 
 export function TabBar() {
   const tabs = useBrowserStore((s) => s.tabs);
@@ -16,6 +17,13 @@ export function TabBar() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
+
+  // Group menu modal state
+  const [activeGroupMenu, setActiveGroupMenu] = useState<{
+    group: TabGroupState;
+    anchorPos?: { x: number; y: number };
+    anchorRect?: DOMRect;
+  } | null>(null);
 
   // Drag-and-drop state
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -176,14 +184,31 @@ export function TabBar() {
               const group = tab.groupId ? groups.find((g) => g.id === tab.groupId) : undefined;
               const isFirstInGroup = group && !seenGroupIds.has(group.id);
               if (group) seenGroupIds.add(group.id);
+
+              const isCollapsed = group?.collapsed && tab.id !== activeTabId;
+              const groupTabCount = group ? regularTabs.filter((t) => t.groupId === group.id).length : 0;
+
               return (
                 <div
                   key={tab.id}
-                  className="flex items-center gap-1 flex-1 min-w-0 shrink-0"
-                  style={{ maxWidth: 200 }}
+                  className={`flex items-center gap-1 min-w-0 shrink-0 transition-all ${
+                    isCollapsed ? 'w-0 overflow-hidden opacity-0 pointer-events-none' : 'flex-1'
+                  }`}
+                  style={{ maxWidth: isCollapsed ? 0 : 200 }}
                 >
                   {isFirstInGroup && group && (
-                    <span
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        setActiveGroupMenu({ group, anchorRect: rect });
+                      }}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setActiveGroupMenu({ group, anchorPos: { x: e.clientX, y: e.clientY } });
+                      }}
                       onDragOver={(e) => {
                         e.preventDefault();
                         e.dataTransfer.dropEffect = 'move';
@@ -202,39 +227,52 @@ export function TabBar() {
                         setDragOverId(null);
                         setDropPos(null);
                       }}
-                      className="tab-group-chip shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-semibold tracking-wide select-none leading-none cursor-pointer"
+                      className="tab-group-chip shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-semibold tracking-wide select-none cursor-pointer transition-all hover:brightness-110 active:scale-95 shadow-sm border border-white/10"
                       style={{
                         '--group-color': group.color,
-                        backgroundColor: `color-mix(in srgb, ${group.color} 14%, transparent)`,
+                        backgroundColor: `color-mix(in srgb, ${group.color} 20%, transparent)`,
                         color: group.color,
-                        borderLeft: `2.5px solid ${group.color}`,
+                        borderColor: `color-mix(in srgb, ${group.color} 40%, transparent)`,
                       } as React.CSSProperties}
-                      title={`${group.name} — drop tab here to add`}
+                      title={`${group.name} (${groupTabCount}) — Click to configure, drop tab here to add`}
                     >
-                      {group.name}
-                    </span>
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: group.color }} />
+                      <span className="truncate max-w-[80px]">{group.name}</span>
+                      <span className="text-[9.5px] opacity-70 px-1 py-0.2 rounded-full bg-white/10">{groupTabCount}</span>
+                    </button>
                   )}
-                  <div
-                    data-tab-id={tab.id}
-                    className="flex-1 min-w-[100px] animate-tab-enter overflow-hidden"
-                  >
-                    <Tab
-                      tab={tab}
-                      active={tab.id === activeTabId}
-                      onDragStart={handleDragStart}
-                      onDragOver={handleDragOver}
-                      onDragLeave={handleDragLeave}
-                      onDrop={handleDrop}
-                      onDragEnd={handleDragEnd}
-                      isDragging={draggingId === tab.id}
-                      dropPosition={dragOverId === tab.id ? dropPos : null}
-                    />
-                  </div>
+                  {!isCollapsed && (
+                    <div
+                      data-tab-id={tab.id}
+                      className="flex-1 min-w-[100px] animate-tab-enter overflow-hidden"
+                    >
+                      <Tab
+                        tab={tab}
+                        active={tab.id === activeTabId}
+                        onDragStart={handleDragStart}
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        onDrop={handleDrop}
+                        onDragEnd={handleDragEnd}
+                        isDragging={draggingId === tab.id}
+                        dropPosition={dragOverId === tab.id ? dropPos : null}
+                      />
+                    </div>
+                  )}
                 </div>
               );
             });
           })()}
         </div>
+
+        {activeGroupMenu && (
+          <TabGroupMenuPopup
+            group={activeGroupMenu.group}
+            anchorRect={activeGroupMenu.anchorRect}
+            anchorPos={activeGroupMenu.anchorPos}
+            onClose={() => setActiveGroupMenu(null)}
+          />
+        )}
 
         {canScrollRight && (
           <button

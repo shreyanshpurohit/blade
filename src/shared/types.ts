@@ -225,6 +225,10 @@ export const IPC = {
   TabGroupRename: 'tab:group:rename',
   TabGroupSetColor: 'tab:group:setColor',
   TabGroupDelete: 'tab:group:delete',
+  TabGroupToggleCollapse: 'tab:group:toggleCollapse',
+  TabGroupCloseTabs: 'tab:group:closeTabs',
+  TabGroupNewTab: 'tab:group:newTab',
+  TabGroupMoveToNewWindow: 'tab:group:moveToNewWindow',
 
   // main -> renderer (events)
   StateChanged: 'event:stateChanged',

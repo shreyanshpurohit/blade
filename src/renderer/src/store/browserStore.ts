@@ -128,6 +128,10 @@ interface BrowserStore extends WindowState {
   renameGroup: (groupId: string, name: string) => void;
   setGroupColor: (groupId: string, color: string) => void;
   deleteGroup: (groupId: string) => void;
+  toggleGroupCollapse: (groupId: string) => void;
+  closeGroup: (groupId: string) => void;
+  newTabInGroup: (groupId: string, url?: string) => void;
+  moveGroupToNewWindow: (groupId: string) => void;
 
   activeTab: () => TabState | undefined;
 }
@@ -420,6 +424,10 @@ export const useBrowserStore = create<BrowserStore>((set, get) => ({
   renameGroup: (groupId, name) => void api.groups.rename(groupId, name),
   setGroupColor: (groupId, color) => void api.groups.setColor(groupId, color),
   deleteGroup: (groupId) => void api.groups.delete(groupId),
+  toggleGroupCollapse: (groupId) => void api.groups.toggleCollapse(groupId),
+  closeGroup: (groupId) => void api.groups.closeGroup(groupId),
+  newTabInGroup: (groupId, url) => void api.groups.newTab(groupId, url),
+  moveGroupToNewWindow: (groupId) => void api.groups.moveToNewWindow(groupId),
 
   activeTab: () => get().tabs.find((t) => t.id === get().activeTabId),
 }));

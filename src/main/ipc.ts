@@ -405,4 +405,16 @@ export function registerIpc() {
   ipcMain.handle(IPC.TabGroupDelete, (e, groupId: string) =>
     managerFor(e).tm.deleteGroup(groupId),
   );
+  ipcMain.handle(IPC.TabGroupToggleCollapse, (e, groupId: string) =>
+    managerFor(e).tm.toggleGroupCollapse(groupId),
+  );
+  ipcMain.handle(IPC.TabGroupCloseTabs, (e, groupId: string) =>
+    managerFor(e).tm.closeGroup(groupId),
+  );
+  ipcMain.handle(IPC.TabGroupNewTab, (e, groupId: string, url?: string) =>
+    managerFor(e).tm.newTabInGroup(groupId, url),
+  );
+  ipcMain.handle(IPC.TabGroupMoveToNewWindow, (e, groupId: string) =>
+    managerFor(e).tm.moveGroupToNewWindow(groupId),
+  );
 }
