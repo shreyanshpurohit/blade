@@ -800,7 +800,7 @@ body {
 }
 
 .page-shell-shifted {
-  margin-left: 240px;
+  margin-left: var(--sidebar-width, 240px);
   transition: margin-left 260ms var(--ease-out-smooth);
 }
 

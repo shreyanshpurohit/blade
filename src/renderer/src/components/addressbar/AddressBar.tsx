@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useBrowserStore } from '../../store/browserStore';
 import { api } from '../../lib/api';
 import { Icon } from '../common/Icon';
+import { BladeLogo } from '../common/BladeLogo';
 import { TrafficLights, TrafficLightsSpacer } from '../chrome/TrafficLights';
 import { BookmarksPopup } from '../chrome/BookmarksPopup';
 import { DownloadPopup } from '../chrome/DownloadPopup';
@@ -210,7 +211,10 @@ export function AddressBar({ showTrafficLights = false }: AddressBarProps) {
             )}
             {/* When not focused, render formatted URL with subtle path */}
             {!focused && (
-              <div className="flex items-center pointer-events-none text-[13px] tracking-wide truncate max-w-full font-medium">
+              <div className="flex items-center gap-2 pointer-events-none text-[13px] tracking-wide truncate max-w-full font-medium">
+                {(activeUrl.startsWith('blade://') || activeUrl.startsWith('lumen://') || activeUrl.startsWith('about:') || !activeUrl) && (
+                  <BladeLogo size={13} className="shrink-0" />
+                )}
                 <span className="text-white/90">{urlDisplay.domain}</span>
                 {urlDisplay.path && (
                   <span className="text-white/45">{urlDisplay.path}</span>

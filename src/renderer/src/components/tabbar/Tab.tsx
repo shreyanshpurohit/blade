@@ -1,6 +1,7 @@
 import type { TabState } from '@shared/types';
 import { useBrowserStore } from '../../store/browserStore';
 import { Icon } from '../common/Icon';
+import { BladeLogo } from '../common/BladeLogo';
 import { api } from '../../lib/api';
 
 interface TabProps {
@@ -19,7 +20,7 @@ interface TabProps {
 export default function Tab({
   tab,
   active,
-  compact,
+  compact = false,
   onDragStart,
   onDragOver,
   onDragLeave,
@@ -32,10 +33,10 @@ export default function Tab({
   const groups = useBrowserStore((s) => s.groups);
   const group = tab.groupId ? groups.find((g) => g.id === tab.groupId) : undefined;
 
-  const isSettings = tab.url.startsWith('lumen://settings');
-  const favicon = isSettings ? (
-    <span className="w-4 h-4 grid place-items-center text-[var(--color-text-secondary)] shrink-0">
-      <Icon name="sliders" size={13} strokeWidth={1.8} />
+  const isInternal = tab.url.startsWith('blade://') || tab.url.startsWith('lumen://') || tab.url.startsWith('about:') || !tab.url;
+  const favicon = isInternal ? (
+    <span className="w-4 h-4 grid place-items-center shrink-0">
+      <BladeLogo size={13} />
     </span>
   ) : tab.favicon ? (
     <img src={tab.favicon} alt="" className="w-4 h-4 shrink-0 rounded-sm" />

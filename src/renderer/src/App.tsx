@@ -8,8 +8,6 @@ import { VerticalTabBar } from './components/tabbar/VerticalTabBar';
 import { AddressBar } from './components/addressbar/AddressBar';
 import { SettingsPage } from './components/settings/SettingsPage';
 import { NewTab } from './components/newtab/NewTab';
-import { HistoryPage } from './components/history/HistoryPage';
-import { DownloadsPage } from './components/downloads/DownloadsPage';
 import { BookmarksPopup } from './components/chrome/BookmarksPopup';
 import { DownloadPopup } from './components/chrome/DownloadPopup';
 import { AppMenuPopup } from './components/chrome/AppMenuPopup';
@@ -144,16 +142,6 @@ function ChromeShell() {
       activeTab.url.startsWith('lumen://settings') ||
       activeTab.url === 'about:settings' ||
       activeTab.url === 'chrome://settings'
-    : false;
-
-  const isHistory = activeTab?.url
-    ? activeTab.url === 'blade://history' ||
-      activeTab.url === 'lumen://history'
-    : false;
-
-  const isDownloads = activeTab?.url
-    ? activeTab.url === 'blade://downloads' ||
-      activeTab.url === 'lumen://downloads'
     : false;
 
   const isNewTab =
@@ -389,22 +377,8 @@ function ChromeShell() {
         </div>
       )}
 
-      {/* ── History Page ── */}
-      {isHistory && (
-        <div className={`page-shell flex-1 overflow-hidden relative z-10 ${isVerticalTabs ? 'page-shell-shifted' : ''}`}>
-          <HistoryPage />
-        </div>
-      )}
-
-      {/* ── Downloads Page ── */}
-      {isDownloads && (
-        <div className={`page-shell flex-1 overflow-hidden relative z-10 ${isVerticalTabs ? 'page-shell-shifted' : ''}`}>
-          <DownloadsPage />
-        </div>
-      )}
-
       {/* ── New Tab / Dashboard Page ── */}
-      {isNewTab && !isSettings && !isHistory && !isDownloads && (
+      {isNewTab && !isSettings && (
         <div className={`page-shell flex-1 overflow-hidden relative z-10 ${isVerticalTabs ? 'page-shell-shifted' : ''}`}>
           <NewTab />
         </div>

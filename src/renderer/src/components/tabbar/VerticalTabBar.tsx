@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { TabState } from '@shared/types';
 import { useBrowserStore } from '../../store/browserStore';
 import { Icon } from '../common/Icon';
+import { BladeLogo } from '../common/BladeLogo';
 import { api } from '../../lib/api';
 
 const DEFAULT_WIDTH = 240;
@@ -361,10 +362,10 @@ function VerticalTabItem({
   const groups = useBrowserStore((s) => s.groups);
   const group = tab.groupId ? groups.find((g) => g.id === tab.groupId) : undefined;
 
-  const isSettings = tab.url.startsWith('lumen://settings') || tab.url.startsWith('blade://settings');
-  const favicon = isSettings ? (
-    <span className="w-4 h-4 grid place-items-center text-[var(--color-text-secondary)] shrink-0">
-      <Icon name="sliders" size={13} strokeWidth={1.8} />
+  const isInternal = tab.url.startsWith('blade://') || tab.url.startsWith('lumen://') || tab.url.startsWith('about:') || !tab.url;
+  const favicon = isInternal ? (
+    <span className="w-4 h-4 grid place-items-center shrink-0">
+      <BladeLogo size={13} />
     </span>
   ) : tab.favicon ? (
     <img src={tab.favicon} alt="" className="w-4 h-4 shrink-0 rounded-sm object-contain" />
@@ -415,7 +416,7 @@ function VerticalTabItem({
         <span className="text-[12px] truncate leading-tight">
           {tab.title || 'New Tab'}
         </span>
-        {domain && !isSettings && (
+        {domain && !isInternal && (
           <span className="text-[10px] text-[var(--color-text-secondary)]/50 truncate leading-tight">
             {domain}
           </span>

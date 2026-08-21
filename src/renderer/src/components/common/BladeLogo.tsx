@@ -1,5 +1,5 @@
-import logoWhite from '../../assets/logo-white.svg';
-import logoBlack from '../../assets/logo-black.svg';
+import logoForDark from '../../assets/logo-dark-theme.svg';
+import logoForLight from '../../assets/logo-light-theme.svg';
 
 interface BladeLogoProps {
   className?: string;
@@ -15,15 +15,15 @@ export function BladeLogo({ className = 'w-6 h-6', size, alt = 'Blade' }: BladeL
       className={`inline-flex items-center justify-center relative shrink-0 select-none ${className}`}
       style={style}
     >
-      {/* In light mode (dark logo on light background) */}
+      {/* Light appearance: dark logo paths (logoForLight) */}
       <img
-        src={logoBlack}
+        src={logoForLight}
         alt={alt}
         className="w-full h-full object-contain pointer-events-none hidden [html[data-appearance='light']_&]:block"
       />
-      {/* In dark / default mode (white logo on dark background) */}
+      {/* Dark / Default appearance: white logo paths (logoForDark) */}
       <img
-        src={logoWhite}
+        src={logoForDark}
         alt={alt}
         className="w-full h-full object-contain pointer-events-none block [html[data-appearance='light']_&]:hidden"
       />

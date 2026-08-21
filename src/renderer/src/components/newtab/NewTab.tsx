@@ -117,7 +117,7 @@ export function NewTab() {
       {/* ── Brand Logo, Clock & Greeting ── */}
       <div className="flex flex-col items-center mb-10 animate-fade-in">
         <div className="mb-4">
-          <BladeLogo className="w-16 h-16 drop-shadow-[0_0_24px_rgba(255,255,255,0.15)] hover:scale-105 transition-transform duration-300" />
+          <BladeLogo className="w-16 h-16 hover:scale-105 transition-transform duration-300" />
         </div>
         <time className="text-[64px] font-semibold tracking-tight text-white/90 leading-none tabular-nums">
           {formatTime(time)}

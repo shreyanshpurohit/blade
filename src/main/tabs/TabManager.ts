@@ -1263,10 +1263,6 @@ function isInternalUrl(url: string): boolean {
     url === 'lumen://newtab' ||
     url === 'about:newtab' ||
     url === 'about:blank' ||
-    url === 'blade://history' ||
-    url === 'lumen://history' ||
-    url === 'blade://downloads' ||
-    url === 'lumen://downloads' ||
     url.startsWith('blade://settings') ||
     url.startsWith('lumen://settings') ||
     url === 'about:settings' ||
@@ -1287,8 +1283,6 @@ export function normalizeUrl(input: string): string {
     if (trimmed.startsWith('blade://settings') || trimmed.startsWith('lumen://settings') || trimmed.includes('settings')) {
       return 'blade://settings';
     }
-    if (trimmed.includes('history')) return 'blade://history';
-    if (trimmed.includes('downloads')) return 'blade://downloads';
     return 'blade://newtab';
   }
   if (/^view-source:/i.test(trimmed)) return trimmed;

@@ -36,7 +36,6 @@ const SECTIONS: { id: string; label: string; icon: IconName }[] = [
   { id: 'search', label: 'Search Engine', icon: 'search' },
   { id: 'tabs', label: 'Tabs & Windows', icon: 'layers' },
   { id: 'performance', label: 'Performance', icon: 'bolt' },
-  { id: 'shields', label: 'Blade Shields', icon: 'shield-check' },
   { id: 'privacy', label: 'Privacy & Data', icon: 'lock' },
   { id: 'history', label: 'History', icon: 'clock' },
   { id: 'downloads', label: 'Downloads', icon: 'download' },
@@ -525,20 +524,31 @@ export function SettingsPage({ url }: { url?: string }) {
           </SettingsSection>
         )}
 
-        {section === 'shields' && (
-          <SettingsSection title="Blade Shields" description="Ad blocking, tracker protection, and secure transport.">
-            <Card title="Protection master switch"><ToggleRow label="Enable Blade Shields" hint="Apply protection to all web tabs." checked={shieldsConfig?.enabled ?? true} onChange={(value) => setShield('enabled', String(value))} /></Card>
-            <Card title="Protection modules">
-              <ToggleRow label="Ad & cosmetic filtering" hint="Remove intrusive display ads and banners." checked={shieldsConfig?.adBlockEnabled ?? true} onChange={(value) => setShield('adBlock', String(value))} />
-              <ToggleRow label="Tracker protection" hint="Block common analytics and tracking beacons." checked={shieldsConfig?.trackerBlockEnabled ?? true} onChange={(value) => setShield('trackerBlock', String(value))} />
-              <ToggleRow label="HTTPS upgrade" hint="Upgrade eligible HTTP connections." checked={shieldsConfig?.httpsUpgrade ?? true} onChange={(value) => setShield('httpsUpgrade', String(value))} />
-            </Card>
-            {shieldsStats && <Card title="Live statistics"><div className="grid grid-cols-3 gap-3"><Stat label="Ads blocked" value={shieldsStats.adsBlocked} /><Stat label="Trackers" value={shieldsStats.trackersBlocked} /><Stat label="HTTPS upgrades" value={shieldsStats.httpsUpgrades} /></div></Card>}
-          </SettingsSection>
-        )}
-
         {section === 'privacy' && (
-          <SettingsSection title="Privacy & Data" description="Control what Blade sends, stores, and removes on your behalf.">
+          <SettingsSection title="Privacy & Data" description="Control tracker blocking, privacy features, and local browsing data.">
+            <Card title="Blade Shields Protection" description="Built-in ad blocking, tracker protection, and secure transport.">
+              <ToggleRow label="Enable Blade Shields" hint="Apply real-time protection to all web tabs." checked={shieldsConfig?.enabled ?? true} onChange={(value) => setShield('enabled', String(value))} />
+              <div className="border-t border-white/10 pt-3 mt-2">
+                <ToggleRow label="Ad & cosmetic filtering" hint="Remove intrusive display ads and banners." checked={shieldsConfig?.adBlockEnabled ?? true} onChange={(value) => setShield('adBlock', String(value))} />
+              </div>
+              <div className="border-t border-white/10 pt-3 mt-2">
+                <ToggleRow label="Tracker protection" hint="Block common analytics and tracking beacons." checked={shieldsConfig?.trackerBlockEnabled ?? true} onChange={(value) => setShield('trackerBlock', String(value))} />
+              </div>
+              <div className="border-t border-white/10 pt-3 mt-2">
+                <ToggleRow label="HTTPS upgrade" hint="Automatically upgrade eligible HTTP connections to secure HTTPS." checked={shieldsConfig?.httpsUpgrade ?? true} onChange={(value) => setShield('httpsUpgrade', String(value))} />
+              </div>
+            </Card>
+
+            {shieldsStats && (
+              <Card title="Shield statistics" description="Aggregated protection metrics for your browsing session.">
+                <div className="grid grid-cols-3 gap-3">
+                  <Stat label="Ads blocked" value={shieldsStats.adsBlocked} />
+                  <Stat label="Trackers blocked" value={shieldsStats.trackersBlocked} />
+                  <Stat label="HTTPS upgrades" value={shieldsStats.httpsUpgrades} />
+                </div>
+              </Card>
+            )}
+
             <Card title="Privacy preferences">
               <ToggleRow label="Send a Do Not Track request" hint="Ask websites not to use your activity for tracking." checked={settings?.sendDoNotTrack ?? false} onChange={(value) => set('sendDoNotTrack', value)} />
               <div className="border-t border-white/10 pt-3 mt-2"><ToggleRow label="Clear site data when Blade closes" hint="Remove cookies, local storage, and service-worker data on exit." checked={settings?.clearSiteDataOnExit ?? false} onChange={(value) => set('clearSiteDataOnExit', value)} /></div>
