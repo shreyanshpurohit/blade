@@ -3,7 +3,7 @@ import { api } from '../../lib/api';
 import { useBrowserStore } from '../../store/browserStore';
 import { Icon } from '../common/Icon';
 import { BladeLogo } from '../common/BladeLogo';
-import type { HistoryEntry } from '@shared/types';
+import type { HistoryEntry, Suggestion } from '@shared/types';
 
 /** Derive the top N most-visited domains from history. */
 function deriveTopSites(entries: HistoryEntry[], max = 8) {
@@ -97,22 +97,73 @@ export function NewTab() {
     return () => window.removeEventListener('keydown', handleKey);
   }, []);
 
-  const handleSearch = useCallback((e: React.FormEvent) => {
-    e.preventDefault();
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [highlight, setHighlight] = useState(-1);
+  const [focused, setFocused] = useState(false);
+
+  // Fetch suggestions when searchValue changes
+  useEffect(() => {
     const q = searchValue.trim();
+    if (!q || !focused) {
+      setSuggestions([]);
+      setHighlight(-1);
+      return;
+    }
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      try {
+        const s = (await api.app.getSuggestions(q)) as Suggestion[];
+        if (!cancelled) setSuggestions(s.slice(0, 8));
+      } catch {
+        // ignore
+      }
+    }, 100);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [searchValue, focused]);
+
+  const handleSearch = useCallback((e?: React.FormEvent, customQuery?: string) => {
+    e?.preventDefault();
+    const q = (customQuery ?? (highlight >= 0 && suggestions[highlight] ? suggestions[highlight].url : searchValue)).trim();
     if (!q) return;
     navigateActive(q);
-  }, [searchValue, navigateActive]);
+  }, [searchValue, highlight, suggestions, navigateActive]);
+
+  const onSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlight((prev) => Math.min(prev + 1, suggestions.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlight((prev) => Math.max(prev - 1, -1));
+    } else if (e.key === 'Escape') {
+      setSuggestions([]);
+      setHighlight(-1);
+      searchRef.current?.blur();
+    }
+  };
 
   const handleFaviconError = useCallback((domain: string) => {
     setFaviconErrors((prev) => new Set(prev).add(domain));
   }, []);
+
+  const getSuggestionIcon = (type: Suggestion['type']) => {
+    switch (type) {
+      case 'history': return 'clock';
+      case 'bookmark': return 'star';
+      case 'url': return 'globe';
+      default: return 'search';
+    }
+  };
 
   return (
     <div className="newtab-page h-full w-full flex flex-col items-center justify-center select-none overflow-auto"
       style={{
         background: 'var(--newtab-bg)',
       }}
+      onClick={() => setFocused(false)}
     >
       {/* ── Clock & Greeting ── */}
       <div className="flex flex-col items-center mb-10 animate-fade-in">
@@ -124,30 +175,77 @@ export function NewTab() {
         </p>
       </div>
 
-      {/* ── Search Bar with Blade Logo ── */}
-      <form onSubmit={handleSearch} className="w-full max-w-[540px] px-6 mb-12 animate-fade-in-delay">
-        <div className="relative group flex items-center">
-          <div className="absolute left-3.5 top-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none transition-transform duration-200 group-focus-within:scale-105">
-            <BladeLogo className="w-5 h-5 opacity-70 group-focus-within:opacity-100 transition-opacity" />
+      {/* ── Search Bar with Blade Logo & Live Suggestions ── */}
+      <div className="w-full max-w-[560px] px-6 mb-12 animate-fade-in-delay relative z-30" onClick={(e) => e.stopPropagation()}>
+        <form onSubmit={handleSearch} className="w-full">
+          <div className="relative group flex items-center">
+            <div className="absolute left-3.5 top-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none transition-transform duration-200 group-focus-within:scale-105">
+              <BladeLogo className="w-5 h-5 opacity-70 group-focus-within:opacity-100 transition-opacity" />
+            </div>
+            <input
+              ref={searchRef}
+              type="text"
+              value={searchValue}
+              onFocus={() => setFocused(true)}
+              onChange={(e) => {
+                setSearchValue(e.target.value);
+                setFocused(true);
+              }}
+              onKeyDown={onSearchKeyDown}
+              placeholder="Search or enter a URL..."
+              spellCheck={false}
+              autoComplete="off"
+              className="w-full h-12 pl-12 pr-4 rounded-2xl
+                bg-white/[0.06] backdrop-blur-xl
+                border border-white/[0.08] group-focus-within:border-white/20
+                text-[15px] text-white/90 font-medium placeholder:text-white/25
+                outline-none transition-all duration-300
+                focus:bg-white/[0.09] focus:ring-2 focus:ring-white/[0.08]
+                shadow-lg shadow-black/20"
+            />
           </div>
-          <input
-            ref={searchRef}
-            type="text"
-            value={searchValue}
-            onChange={(e) => setSearchValue(e.target.value)}
-            placeholder="Search or enter a URL..."
-            spellCheck={false}
-            autoComplete="off"
-            className="w-full h-12 pl-12 pr-4 rounded-2xl
-              bg-white/[0.06] backdrop-blur-xl
-              border border-white/[0.08] group-focus-within:border-white/20
-              text-[15px] text-white/90 font-medium placeholder:text-white/25
-              outline-none transition-all duration-300
-              focus:bg-white/[0.09] focus:ring-2 focus:ring-white/[0.08]
-              shadow-lg shadow-black/20"
-          />
-        </div>
-      </form>
+        </form>
+
+        {/* ── Suggestions & History Dropdown ── */}
+        {focused && suggestions.length > 0 && (
+          <div
+            className="absolute left-6 right-6 top-[calc(100%+8px)] glass-panel border border-white/15 rounded-2xl p-1.5 shadow-2xl backdrop-blur-2xl flex flex-col gap-0.5 animate-menu-in z-50 overflow-hidden"
+            style={{
+              background: 'color-mix(in srgb, var(--color-surface-solid, #141414) 96%, var(--app-bg))',
+            }}
+          >
+            {suggestions.map((s, idx) => {
+              const isSelected = idx === highlight;
+              return (
+                <button
+                  key={`${s.type}-${s.url}-${idx}`}
+                  type="button"
+                  onClick={() => handleSearch(undefined, s.url)}
+                  onMouseEnter={() => setHighlight(idx)}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-left transition-colors ${
+                    isSelected ? 'bg-white/[0.12] text-white' : 'text-white/80 hover:bg-white/[0.06]'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    <Icon
+                      name={getSuggestionIcon(s.type)}
+                      size={14}
+                      strokeWidth={1.8}
+                      className="shrink-0 text-white/40"
+                    />
+                    <span className="text-[13px] font-medium truncate">{s.title || s.url}</span>
+                  </div>
+                  {s.type !== 'search' && (
+                    <span className="text-[11px] text-white/40 truncate max-w-[160px] font-mono ml-2">
+                      {s.url}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       {/* ── Top Sites Grid ── */}
       {topSites.length > 0 && (

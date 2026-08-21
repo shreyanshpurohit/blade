@@ -98,9 +98,29 @@ export function registerIpc() {
     tm.setSidebarWidth(px);
   });
 
+  async function fetchGoogleSuggestions(query: string): Promise<string[]> {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 650);
+      const res = await fetch(
+        `https://suggestqueries.google.com/complete/search?client=chrome&q=${encodeURIComponent(query)}`,
+        { signal: controller.signal }
+      );
+      clearTimeout(timeout);
+      if (!res.ok) return [];
+      const data = (await res.json()) as [string, string[]];
+      if (Array.isArray(data) && Array.isArray(data[1])) {
+        return data[1].slice(0, 6);
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  }
+
   ipcMain.handle(IPC.GetSuggestions, async (_e, query: string): Promise<Suggestion[]> => {
     const trimmedQuery = query.trim();
-    if (trimmedQuery.length < 2) {
+    if (!trimmedQuery) {
       const topSites = listHistory('', 8).map<Suggestion>((h) => ({
         type: 'top-site',
         title: h.title || h.url,
@@ -111,39 +131,69 @@ export function registerIpc() {
         title: h.title || h.url,
         url: h.url,
       }));
-      
-      const topSiteUrls = new Set(topSites.map(s => s.url));
-      const filteredHistory = recentHistory.filter(h => !topSiteUrls.has(h.url));
-      
-      return [...topSites, ...filteredHistory].slice(0, 10);
+
+      const topSiteUrls = new Set(topSites.map((s) => s.url));
+      const filteredHistory = recentHistory.filter((h) => !topSiteUrls.has(h.url));
+
+      return [...topSites, ...filteredHistory].slice(0, 8);
     }
 
     const isUrl = trimmedQuery.includes('.') && !trimmedQuery.includes(' ');
     const suggestions: Suggestion[] = [];
+    const seenUrls = new Set<string>();
 
     if (isUrl) {
-      suggestions.push({ type: 'url', title: trimmedQuery, url: trimmedQuery });
+      const fullUrl = /^https?:\/\//i.test(trimmedQuery) ? trimmedQuery : `https://${trimmedQuery}`;
+      suggestions.push({ type: 'url', title: trimmedQuery, url: fullUrl });
+      seenUrls.add(fullUrl);
+      seenUrls.add(trimmedQuery);
     }
 
-    const history = searchHistory(trimmedQuery, 6).map<Suggestion>((h) => ({
-      type: 'history',
-      title: h.title || h.url,
-      url: h.url,
-    }));
-    suggestions.push(...history);
+    // 1. History matches
+    const history = searchHistory(trimmedQuery, 5);
+    for (const h of history) {
+      if (!seenUrls.has(h.url)) {
+        seenUrls.add(h.url);
+        suggestions.push({
+          type: 'history',
+          title: h.title || h.url,
+          url: h.url,
+        });
+      }
+    }
 
-    const historyUrls = new Set(history.map((h) => h.url));
-    const bookmarks = searchBookmarks(trimmedQuery, 4)
-      .filter((b) => b.url && !historyUrls.has(b.url))
-      .map<Suggestion>((b) => ({
-        type: 'bookmark',
-        title: b.title,
-        url: b.url ?? '',
-      }));
-    
-    suggestions.push(...bookmarks);
+    // 2. Bookmarks matches
+    const bookmarks = searchBookmarks(trimmedQuery, 3);
+    for (const b of bookmarks) {
+      if (b.url && !seenUrls.has(b.url)) {
+        seenUrls.add(b.url);
+        suggestions.push({
+          type: 'bookmark',
+          title: b.title,
+          url: b.url,
+        });
+      }
+    }
 
-    suggestions.push({ type: 'search', title: `Search for "${trimmedQuery}"`, url: trimmedQuery });
+    // 3. Google live search suggestions
+    const googleQueries = await fetchGoogleSuggestions(trimmedQuery);
+    for (const gq of googleQueries) {
+      if (!seenUrls.has(gq.toLowerCase()) && gq.toLowerCase() !== trimmedQuery.toLowerCase()) {
+        seenUrls.add(gq.toLowerCase());
+        suggestions.push({
+          type: 'search',
+          title: gq,
+          url: gq,
+        });
+      }
+    }
+
+    // 4. Default primary search query
+    suggestions.push({
+      type: 'search',
+      title: `Search for "${trimmedQuery}"`,
+      url: trimmedQuery,
+    });
 
     return suggestions.slice(0, 10);
   });
