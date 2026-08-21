@@ -75,17 +75,30 @@ export function AddressBar({ showTrafficLights = false }: AddressBarProps) {
     const q = value.trim();
     if (!focused || q === displayUrl(tab?.url ?? '')) {
       setSuggestions([]);
+      void api.app.hideSuggestions();
       return;
     }
     let cancelled = false;
     const t = setTimeout(async () => {
       try {
         const s = (await api.app.getSuggestions(q)) as Suggestion[];
-        if (!cancelled) setSuggestions(s.slice(0, 10));
+        if (!cancelled) {
+          setSuggestions(s.slice(0, 10));
+          if (s.length > 0 && omniboxRef.current) {
+            const rect = omniboxRef.current.getBoundingClientRect();
+            void api.app.showSuggestions(
+              { x: rect.left, y: rect.bottom + 6, width: rect.width },
+              q
+            );
+            void api.app.updateSuggestions(q);
+          } else {
+            void api.app.hideSuggestions();
+          }
+        }
       } catch {
         // ignore
       }
-    }, 120);
+    }, 100);
     return () => {
       cancelled = true;
       clearTimeout(t);

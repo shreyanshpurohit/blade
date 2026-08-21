@@ -145,6 +145,7 @@ export const WindowManager = {
   popupVisible: false,
   currentPopupType: '',
   suggestionsView: null as any,
+  suggestionsLoaded: false,
   suggestionsVisible: false,
   downloadPopupView: null as any,
   downloadPopupVisible: false,
@@ -243,33 +244,48 @@ export const WindowManager = {
         webPreferences: { preload: preloadPath(), contextIsolation: true, sandbox: false, nodeIntegration: false },
       });
       this.suggestionsView.setBackgroundColor('#00000000');
+      const hash = `#/suggestions?q=${encodeURIComponent(query)}`;
+      const devUrl = process.env.BLADE_DEV_SERVER_URL || process.env.LUMEN_DEV_SERVER_URL;
+      if (devUrl) this.suggestionsView.webContents.loadURL(`${devUrl}${hash}`);
+      else this.suggestionsView.webContents.loadFile(rendererEntry(), { hash });
+      this.suggestionsLoaded = true;
+    } else {
+      this.suggestionsView.webContents.send(IPC.SuggestionsChanged, query);
     }
-    parentWin.contentView.addChildView(this.suggestionsView);
+    try {
+      parentWin.contentView.addChildView(this.suggestionsView);
+    } catch {
+      /* ignore */
+    }
     this.suggestionsVisible = true;
     const [, contentHeight] = parentWin.getContentSize();
     this.suggestionsView.setBounds({
       x: Math.max(0, Math.round(bounds.x)),
       y: Math.max(0, Math.round(bounds.y)),
       width: Math.max(240, Math.round(bounds.width)),
-      height: Math.min(300, Math.max(180, contentHeight - Math.round(bounds.y) - 8)),
+      height: Math.min(380, Math.max(140, contentHeight - Math.round(bounds.y) - 16)),
     });
-    const hash = `#/suggestions?q=${encodeURIComponent(query)}`;
-    const devUrl = process.env.BLADE_DEV_SERVER_URL || process.env.LUMEN_DEV_SERVER_URL;
-    if (devUrl) this.suggestionsView.webContents.loadURL(`${devUrl}${hash}`);
-    else this.suggestionsView.webContents.loadFile(rendererEntry(), { hash });
   },
 
-  updateSuggestions(parentWin: BrowserWindow, query: string) {
+  updateSuggestions(_parentWin: BrowserWindow, query: string) {
     if (!this.suggestionsView || !this.suggestionsVisible) return;
     if (!this.suggestionsView.webContents.isDestroyed()) {
       this.suggestionsView.webContents.send(IPC.SuggestionsChanged, query);
     }
   },
 
-  closeSuggestions(_parentWin?: BrowserWindow) {
+  closeSuggestions(parentWin?: BrowserWindow) {
     if (this.suggestionsView) {
       this.suggestionsVisible = false;
       this.suggestionsView.setBounds({ x: 0, y: 0, width: 0, height: 0 });
+      const win = parentWin ?? this.primaryWindow();
+      if (win && !win.isDestroyed()) {
+        try {
+          win.contentView.removeChildView(this.suggestionsView);
+        } catch {
+          /* ignore */
+        }
+      }
     }
   },
 

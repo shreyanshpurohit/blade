@@ -13,12 +13,17 @@ import { DownloadPopup } from './components/chrome/DownloadPopup';
 import { AppMenuPopup } from './components/chrome/AppMenuPopup';
 import { ShieldsPopup } from './components/chrome/ShieldsPopup';
 import { HistoryPopup } from './components/chrome/HistoryPopup';
+import { SuggestionsPopup } from './components/chrome/SuggestionsPopup';
 import { FindBar } from './components/chrome/FindBar';
 import { applyAppearanceMode } from './lib/theme';
 import type { DownloadItem, Suggestion } from '@shared/types';
 import { Icon } from './components/common/Icon';
 
 export function App() {
+  if (window.location.hash.startsWith('#/suggestions')) {
+    const params = new URLSearchParams(window.location.hash.split('?')[1] || '');
+    return <SuggestionsPopup initialQuery={params.get('q') || ''} />;
+  }
   if (
     window.location.hash.startsWith('#/popup') ||
     window.location.hash.startsWith('#/app-menu') ||
