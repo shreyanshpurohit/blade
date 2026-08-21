@@ -353,22 +353,30 @@ export function VerticalTabBar() {
                   )}
 
                   {!isCollapsed && (
-                    <VerticalTabItem
-                      tab={tab}
-                      isActive={tab.id === activeTabId}
-                      domain={getDomain(tab.url)}
-                      onActivate={activateTab}
-                      onClose={closeTab}
-                      onToggleMute={toggleMute}
-                      onContextMenu={openCtx}
-                      onDragStart={handleDragStart}
-                      onDragOver={handleDragOver}
-                      onDragLeave={handleDragLeave}
-                      onDrop={handleDrop}
-                      onDragEnd={handleDragEnd}
-                      isDragging={draggingId === tab.id}
-                      dropPosition={dragOverId === tab.id ? dropPos : null}
-                    />
+                    <div className="relative">
+                      {group && (
+                        <div
+                          className="absolute left-[7px] -top-1 -bottom-1 w-[2px] pointer-events-none z-10"
+                          style={{ backgroundColor: group.color }}
+                        />
+                      )}
+                      <VerticalTabItem
+                        tab={tab}
+                        isActive={tab.id === activeTabId}
+                        domain={getDomain(tab.url)}
+                        onActivate={activateTab}
+                        onClose={closeTab}
+                        onToggleMute={toggleMute}
+                        onContextMenu={openCtx}
+                        onDragStart={handleDragStart}
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        onDrop={handleDrop}
+                        onDragEnd={handleDragEnd}
+                        isDragging={draggingId === tab.id}
+                        dropPosition={dragOverId === tab.id ? dropPos : null}
+                      />
+                    </div>
                   )}
                 </div>
               );
@@ -459,9 +467,8 @@ function VerticalTabItem({
       onClick={() => onActivate(tab.id)}
       onAuxClick={(e) => e.button === 1 && onClose(tab.id)}
       onContextMenu={(e) => onContextMenu(e, tab)}
-      style={group ? { borderLeftColor: group.color, borderLeftWidth: '2.5px', borderLeftStyle: 'solid' } : undefined}
       className={`group h-9 flex items-center gap-2.5 px-3 rounded-xl transition-all duration-150 cursor-pointer select-none relative ${
-        group ? 'ml-2' : ''
+        group ? 'ml-3' : ''
       } ${
         isActive
           ? 'bg-white/[0.14] text-[var(--color-text-primary)] shadow-sm font-medium'
