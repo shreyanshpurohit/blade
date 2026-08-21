@@ -78,6 +78,8 @@ export function BookmarksBar() {
   const visibleItems = topLevel.slice(0, visibleCount);
   const overflowItems = topLevel.slice(visibleCount);
 
+  if (topLevel.length === 0) return null;
+
   return (
     <div className="relative w-full h-8 flex items-center bg-transparent">
       {/* Invisible measuring container */}

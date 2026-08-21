@@ -92,29 +92,11 @@ export function AddressBar({ showTrafficLights = false }: AddressBarProps) {
     };
   }, [value, focused, tab?.url]);
 
-  useEffect(() => {
-    if (focused && suggestions.length > 0) {
-      const raf = requestAnimationFrame(() => {
-        const h = suggestionsDropdownRef.current?.getBoundingClientRect().height ?? 0;
-        if (h > 0) {
-          void api.app.setSuggestionsHeight(Math.round(h + 16));
-        }
-      });
-      return () => {
-        cancelAnimationFrame(raf);
-        void api.app.setSuggestionsHeight(0);
-      };
-    } else {
-      void api.app.setSuggestionsHeight(0);
-    }
-  }, [focused, suggestions.length]);
-
   const submit = (raw: string) => {
     if (!raw.trim()) return;
     navigateActive(raw.trim());
     setFocused(false);
     setSuggestions([]);
-    void api.app.setSuggestionsHeight(0);
     void api.app.hideSuggestions();
     inputRef.current?.blur();
   };
@@ -147,7 +129,6 @@ export function AddressBar({ showTrafficLights = false }: AddressBarProps) {
     } else if (e.key === 'Escape') {
       setFocused(false);
       setSuggestions([]);
-      void api.app.setSuggestionsHeight(0);
       setValue(displayUrl(tab?.url ?? ''));
       setOriginalQuery('');
       setHighlight(-1);

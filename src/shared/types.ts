@@ -179,7 +179,6 @@ export const IPC = {
   SettingsSet: 'settings:set',
   OpenSettings: 'app:openSettings',
   SetChromeHeight: 'app:setChromeHeight',
-  SetSuggestionsHeight: 'app:setSuggestionsHeight',
   HistoryList: 'history:list',
   HistoryRemove: 'history:remove',
   HistoryClear: 'history:clear',
