@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useBrowserStore } from '../../store/browserStore';
 import { Icon } from '../common/Icon';
+import type { IconName } from '../common/Icon';
 import { api } from '../../lib/api';
 
 interface AppMenuPopupProps {
@@ -11,45 +12,19 @@ interface AppMenuPopupProps {
   anchorPos?: { x: number; y: number } | null;
 }
 
+type SubmenuId = 'history' | 'bookmarks' | 'save_share' | 'more_tools' | 'help' | null;
+
 export function AppMenuPopup({ isOpen, onClose, anchorRect, anchorPos }: AppMenuPopupProps) {
   const tabs = useBrowserStore((s) => s.tabs);
   const activeTabId = useBrowserStore((s) => s.activeTabId);
   const activeTab = useBrowserStore((s) => s.activeTab());
-
-  const {
-    activateTab,
-    closeTab,
-    createTab,
-    openSettings,
-    newWindow,
-    newIncognitoWindow,
-    clearBrowsingData,
-    zoomIn,
-    zoomOut,
-    zoomReset,
-    toggleFullscreen,
-    print,
-    savePage,
-    toggleDevTools,
-    setFindBarOpen,
-    exit,
-  } = useBrowserStore();
+  const bookmarksBarVisible = useBrowserStore((s) => s.bookmarksBarVisible);
+  const activeBookmarked = useBrowserStore((s) => s.activeBookmarked);
 
   const [search, setSearch] = useState('');
+  const [activeSubmenu, setActiveSubmenu] = useState<SubmenuId>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  if (!isOpen) return null;
-
-  const q = search.trim().toLowerCase();
-  const filteredTabs = q
-    ? tabs.filter((t) => t.title.toLowerCase().includes(q) || t.url.toLowerCase().includes(q))
-    : [];
-
-  const rawX = anchorPos && anchorPos.x > 0 ? anchorPos.x : anchorRect ? anchorRect.right : window.innerWidth - 20;
-  const rawY = anchorPos && anchorPos.y > 0 ? anchorPos.y : anchorRect ? anchorRect.bottom : 56;
-
-  const rightPos = Math.max(12, window.innerWidth - rawX);
-  const topPos = Math.max(8, rawY + 6);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const [zoomPercent, setZoomPercent] = useState(() => Math.round((activeTab?.zoomFactor ?? 1) * 100));
 
@@ -59,30 +34,52 @@ export function AppMenuPopup({ isOpen, onClose, anchorRect, anchorPos }: AppMenu
     }
   }, [activeTab?.zoomFactor]);
 
+  if (!isOpen) return null;
+
+  const rawX = anchorPos && anchorPos.x > 0 ? anchorPos.x : anchorRect ? anchorRect.right : window.innerWidth - 20;
+  const rawY = anchorPos && anchorPos.y > 0 ? anchorPos.y : anchorRect ? anchorRect.bottom : 56;
+
+  const rightPos = Math.max(12, window.innerWidth - rawX);
+  const topPos = Math.max(8, rawY + 6);
+
+  const q = search.trim().toLowerCase();
+  const filteredTabs = q
+    ? tabs.filter((t) => t.title.toLowerCase().includes(q) || t.url.toLowerCase().includes(q))
+    : [];
+
+  const handleAction = (fn: () => void) => {
+    try {
+      fn();
+    } catch {
+      /* ignore */
+    }
+    onClose();
+  };
+
   const handleZoomIn = async () => {
     try {
-      const next = (await api.tabs.zoomIn()) as number;
+      const next = (await api.tabs.zoomIn(activeTabId ?? undefined)) as number;
       if (typeof next === 'number') setZoomPercent(Math.round(next * 100));
     } catch {
-      zoomIn();
+      useBrowserStore.getState().zoomIn();
     }
   };
 
   const handleZoomOut = async () => {
     try {
-      const next = (await api.tabs.zoomOut()) as number;
+      const next = (await api.tabs.zoomOut(activeTabId ?? undefined)) as number;
       if (typeof next === 'number') setZoomPercent(Math.round(next * 100));
     } catch {
-      zoomOut();
+      useBrowserStore.getState().zoomOut();
     }
   };
 
   const handleZoomReset = async () => {
     try {
-      const next = (await api.tabs.zoomReset()) as number;
+      const next = (await api.tabs.zoomReset(activeTabId ?? undefined)) as number;
       if (typeof next === 'number') setZoomPercent(Math.round(next * 100));
     } catch {
-      zoomReset();
+      useBrowserStore.getState().zoomReset();
     }
   };
 
@@ -96,7 +93,8 @@ export function AppMenuPopup({ isOpen, onClose, anchorRect, anchorPos }: AppMenu
       }}
     >
       <div
-        className="absolute w-[265px] max-h-[560px] overflow-y-auto custom-scrollbar glass-panel border border-white/15 rounded-2xl p-1.5 shadow-2xl flex flex-col gap-0.5 animate-menu-in text-[11.5px]"
+        ref={menuRef}
+        className="absolute w-[270px] max-h-[580px] overflow-y-auto custom-scrollbar glass-panel border border-white/15 rounded-2xl p-1.5 shadow-2xl flex flex-col gap-0.5 animate-menu-in text-[11.5px]"
         style={{
           right: `${rightPos}px`,
           top: `${topPos}px`,
@@ -137,7 +135,7 @@ export function AppMenuPopup({ isOpen, onClose, anchorRect, anchorPos }: AppMenu
               <div
                 key={tab.id}
                 onClick={() => {
-                  activateTab(tab.id);
+                  void api.tabs.activate(tab.id);
                   onClose();
                 }}
                 className={`flex items-center gap-2 px-2 py-1 rounded-lg cursor-pointer text-[11px] ${
@@ -157,7 +155,7 @@ export function AppMenuPopup({ isOpen, onClose, anchorRect, anchorPos }: AppMenu
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    closeTab(tab.id);
+                    void api.tabs.close(tab.id);
                   }}
                   className="p-0.5 text-white/40 hover:text-white"
                 >
@@ -174,99 +172,98 @@ export function AppMenuPopup({ isOpen, onClose, anchorRect, anchorPos }: AppMenu
             icon="plus"
             label="New tab"
             shortcut="Ctrl+T"
-            onClick={() => {
-              createTab();
-              onClose();
-            }}
+            onClick={() => handleAction(() => void api.tabs.create('blade://newtab'))}
           />
           <MenuItem
             icon="window"
             label="New window"
             shortcut="Ctrl+N"
-            onClick={() => {
-              newWindow();
-              onClose();
-            }}
+            onClick={() => handleAction(() => void api.app.newWindow())}
           />
           <MenuItem
             icon="eye-slash"
             label="New private window"
             shortcut="Ctrl+Shift+N"
-            onClick={() => {
-              newIncognitoWindow();
-              onClose();
-            }}
-          />
-          <MenuItem
-            icon="shield"
-            label="New private window with Tor"
-            shortcut="Shift+Alt+N"
-            onClick={() => {
-              newIncognitoWindow();
-              onClose();
-            }}
+            onClick={() => handleAction(() => void api.app.newIncognitoWindow())}
           />
         </div>
 
         <div className="my-0.5 h-px bg-white/[0.08] mx-1.5" />
 
-        {/* ── Section 2: Browser Features & Tools ── */}
+        {/* ── Section 2: Browser Features & Navigation ── */}
         <div className="flex flex-col space-y-0.5">
           <MenuItem
             icon="key"
             label="Passwords and autofill"
-            hasSubmenu
-            onClick={() => {
-              openSettings('privacy');
-              onClose();
-            }}
+            onClick={() => handleAction(() => void api.app.openSettings('passwords'))}
           />
-          <MenuItem
+
+          <MenuItemWithSubmenu
+            id="history"
+            activeSubmenu={activeSubmenu}
+            setActiveSubmenu={setActiveSubmenu}
             icon="clock"
             label="History"
             shortcut="Ctrl+H"
-            hasSubmenu
-            onClick={() => {
-              void api.app.showPopup({ type: 'history', x: rawX, y: rawY });
-              onClose();
-            }}
-          />
-          <MenuItem
+          >
+            <MenuItem
+              icon="clock"
+              label="History panel"
+              shortcut="Ctrl+H"
+              onClick={() => handleAction(() => void api.app.setSidebar(true, 'history'))}
+            />
+            <MenuItem
+              icon="settings"
+              label="History settings"
+              onClick={() => handleAction(() => void api.app.openSettings('history'))}
+            />
+          </MenuItemWithSubmenu>
+
+          <MenuItemWithSubmenu
+            id="bookmarks"
+            activeSubmenu={activeSubmenu}
+            setActiveSubmenu={setActiveSubmenu}
             icon="bookmark"
             label="Bookmarks and lists"
-            shortcut="Ctrl+Shift+O"
-            hasSubmenu
-            onClick={() => {
-              void api.app.showPopup({ type: 'bookmarks', x: rawX, y: rawY });
-              onClose();
-            }}
-          />
+          >
+            <MenuItem
+              icon={activeBookmarked ? 'bookmark-fill' : 'bookmark'}
+              label={activeBookmarked ? 'Edit bookmark for tab' : 'Bookmark this tab'}
+              shortcut="Ctrl+D"
+              onClick={() => handleAction(() => void api.bookmarks.toggle(activeTab?.title || '', activeTab?.url || ''))}
+            />
+            <MenuItem
+              icon="folder"
+              label="Bookmarks manager"
+              shortcut="Ctrl+Shift+O"
+              onClick={() => handleAction(() => void api.app.setSidebar(true, 'bookmarks'))}
+            />
+            <MenuItem
+              icon="sidebar"
+              label={bookmarksBarVisible ? 'Hide bookmarks bar' : 'Show bookmarks bar'}
+              shortcut="Ctrl+Shift+B"
+              onClick={() => handleAction(() => void api.settings.set('bookmarksBarVisible', String(!bookmarksBarVisible)))}
+            />
+          </MenuItemWithSubmenu>
+
           <MenuItem
             icon="download"
             label="Downloads"
             shortcut="Ctrl+J"
-            onClick={() => {
-              void api.app.showPopup({ type: 'downloads', x: rawX, y: rawY });
-              onClose();
-            }}
+            onClick={() => handleAction(() => void api.app.openSettings('downloads'))}
           />
+
           <MenuItem
             icon="shield"
             label="Shields & Privacy"
-            hasSubmenu
-            onClick={() => {
-              void api.app.showPopup({ type: 'shields', x: rawX, y: rawY });
-              onClose();
-            }}
+            onClick={() => handleAction(() => void api.app.openSettings('privacy'))}
           />
+
           <MenuItem
             icon="trash"
             label="Delete browsing data..."
             shortcut="Ctrl+Shift+Del"
-            onClick={() => {
-              void clearBrowsingData();
-              onClose();
-            }}
+            onClick={() => handleAction(() => void api.app.openSettings('privacy'))}
           />
         </div>
 
@@ -282,26 +279,26 @@ export function AppMenuPopup({ isOpen, onClose, anchorRect, anchorPos }: AppMenu
             <button
               onClick={handleZoomOut}
               className="w-5 h-5 rounded flex items-center justify-center hover:bg-white/10 hover:text-white"
-              title="Zoom Out"
+              title="Zoom Out (Ctrl -)"
             >
               <Icon name="minus" size={10} strokeWidth={2} />
             </button>
             <button
               onClick={handleZoomReset}
               className="px-1 text-[10.5px] font-semibold text-white hover:underline min-w-[34px] text-center"
-              title="Reset Zoom"
+              title="Reset Zoom (Ctrl 0)"
             >
               {zoomPercent}%
             </button>
             <button
               onClick={handleZoomIn}
               className="w-5 h-5 rounded flex items-center justify-center hover:bg-white/10 hover:text-white"
-              title="Zoom In"
+              title="Zoom In (Ctrl +)"
             >
               <Icon name="plus" size={10} strokeWidth={2} />
             </button>
             <button
-              onClick={() => toggleFullscreen()}
+              onClick={() => void api.app.toggleFullscreen()}
               className="w-5 h-5 rounded ml-0.5 flex items-center justify-center hover:bg-white/10 hover:text-white"
               title="Fullscreen (F11)"
             >
@@ -318,38 +315,70 @@ export function AppMenuPopup({ isOpen, onClose, anchorRect, anchorPos }: AppMenu
             icon="printer"
             label="Print..."
             shortcut="Ctrl+P"
-            onClick={() => {
-              print();
-              onClose();
-            }}
+            onClick={() => handleAction(() => {
+              if (activeTabId) void api.tabs.print(activeTabId);
+            })}
           />
           <MenuItem
             icon="search"
             label="Find in page"
             shortcut="Ctrl+F"
-            onClick={() => {
-              onClose();
-              void api.app.openFindBar();
-            }}
+            onClick={() => handleAction(() => void api.app.openFindBar())}
           />
-          <MenuItem
-            icon="doc"
-            label="Save page as..."
-            shortcut="Ctrl+S"
-            onClick={() => {
-              savePage();
-              onClose();
-            }}
-          />
-          <MenuItem
-            icon="terminal"
-            label="Developer Tools"
-            shortcut="F12"
-            onClick={() => {
-              toggleDevTools();
-              onClose();
-            }}
-          />
+
+          <MenuItemWithSubmenu
+            id="save_share"
+            activeSubmenu={activeSubmenu}
+            setActiveSubmenu={setActiveSubmenu}
+            icon="share"
+            label="Save and share"
+          >
+            <MenuItem
+              icon="copy"
+              label="Copy page link"
+              onClick={() => handleAction(() => {
+                if (activeTab?.url) void navigator.clipboard.writeText(activeTab.url);
+              })}
+            />
+            <MenuItem
+              icon="doc"
+              label="Save page as..."
+              shortcut="Ctrl+S"
+              onClick={() => handleAction(() => {
+                if (activeTabId) void api.tabs.savePage(activeTabId);
+              })}
+            />
+          </MenuItemWithSubmenu>
+
+          <MenuItemWithSubmenu
+            id="more_tools"
+            activeSubmenu={activeSubmenu}
+            setActiveSubmenu={setActiveSubmenu}
+            icon="wrench"
+            label="More tools"
+          >
+            <MenuItem
+              icon="terminal"
+              label="Developer tools"
+              shortcut="Ctrl+Shift+I"
+              onClick={() => handleAction(() => {
+                if (activeTabId) void api.tabs.toggleDevTools(activeTabId, 'right');
+              })}
+            />
+            <MenuItem
+              icon="doc"
+              label="View page source"
+              shortcut="Ctrl+U"
+              onClick={() => handleAction(() => {
+                if (activeTabId) void api.tabs.viewSource(activeTabId);
+              })}
+            />
+            <MenuItem
+              icon="settings"
+              label="Developer settings"
+              onClick={() => handleAction(() => void api.app.openSettings('developer'))}
+            />
+          </MenuItemWithSubmenu>
         </div>
 
         <div className="my-0.5 h-px bg-white/[0.08] mx-1.5" />
@@ -360,19 +389,13 @@ export function AppMenuPopup({ isOpen, onClose, anchorRect, anchorPos }: AppMenu
             icon="gear"
             label="Settings"
             shortcut="Ctrl+,"
-            onClick={() => {
-              openSettings();
-              onClose();
-            }}
+            onClick={() => handleAction(() => void api.app.openSettings())}
           />
           <MenuItem
             icon="x"
             label="Exit"
             danger
-            onClick={() => {
-              exit();
-              onClose();
-            }}
+            onClick={() => handleAction(() => void api.app.exit())}
           />
         </div>
       </div>
@@ -406,7 +429,7 @@ function MenuItem({
       }`}
     >
       <div className="flex items-center gap-2 min-w-0">
-        <Icon name={icon as any} size={13} strokeWidth={1.8} className="shrink-0 opacity-75" />
+        <Icon name={icon as IconName} size={13} strokeWidth={1.8} className="shrink-0 opacity-75" />
         <span className="truncate">{label}</span>
       </div>
       <div className="flex items-center gap-1 shrink-0 ml-1.5">
@@ -420,5 +443,67 @@ function MenuItem({
         )}
       </div>
     </button>
+  );
+}
+
+function MenuItemWithSubmenu({
+  id,
+  activeSubmenu,
+  setActiveSubmenu,
+  icon,
+  label,
+  shortcut,
+  children,
+}: {
+  id: SubmenuId;
+  activeSubmenu: SubmenuId;
+  setActiveSubmenu: (id: SubmenuId) => void;
+  icon: IconName;
+  label: string;
+  shortcut?: string;
+  children: React.ReactNode;
+}) {
+  const isOpen = activeSubmenu === id;
+
+  return (
+    <div
+      className="relative"
+      onMouseEnter={() => setActiveSubmenu(id)}
+      onMouseLeave={() => setActiveSubmenu(null)}
+    >
+      <button
+        type="button"
+        onClick={() => setActiveSubmenu(isOpen ? null : id)}
+        className={`w-full flex items-center justify-between px-2.5 py-1 rounded-lg text-[11.5px] font-medium transition-colors ${
+          isOpen
+            ? 'bg-white/[0.10] text-[var(--color-text-primary)]'
+            : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-white/[0.07]'
+        }`}
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          <Icon name={icon} size={13} strokeWidth={1.8} className="shrink-0 opacity-75" />
+          <span className="truncate">{label}</span>
+        </div>
+        <div className="flex items-center gap-1 shrink-0 ml-1.5">
+          {shortcut && (
+            <span className="text-[9.5px] text-[var(--color-text-secondary)]/50 tracking-wider font-mono">
+              {shortcut}
+            </span>
+          )}
+          <Icon name="chevron-right" size={10} className="opacity-40" />
+        </div>
+      </button>
+
+      {isOpen && (
+        <div
+          className="absolute right-[calc(100%+4px)] top-0 w-[200px] glass-panel border border-white/15 rounded-xl p-1 shadow-2xl flex flex-col gap-0.5 z-50 animate-menu-in"
+          style={{
+            background: 'color-mix(in srgb, var(--color-surface-solid, #141414) 98%, var(--app-bg))',
+          }}
+        >
+          {children}
+        </div>
+      )}
+    </div>
   );
 }

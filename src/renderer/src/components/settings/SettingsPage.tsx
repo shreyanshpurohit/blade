@@ -662,7 +662,7 @@ export function SettingsPage({ url }: { url?: string }) {
 }
 
 function SettingsSection({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
-  return <div className="space-y-4 animate-tab-enter"><div><h1 className="text-xl font-bold text-white tracking-tight">{title}</h1>{description && <p className="text-xs text-white/50 mt-1">{description}</p>}</div><div className="space-y-4">{children}</div></div>;
+  return <div className="space-y-4 animate-settings-enter"><div><h1 className="text-xl font-bold text-white tracking-tight">{title}</h1>{description && <p className="text-xs text-white/50 mt-1">{description}</p>}</div><div className="space-y-4">{children}</div></div>;
 }
 
 function Card({ title, description, children }: { title: string; description?: string; children: ReactNode }) {

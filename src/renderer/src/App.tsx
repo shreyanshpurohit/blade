@@ -198,6 +198,15 @@ function ChromeShell() {
     return () => mq.removeEventListener('change', apply);
   }, [theme, incognito]);
 
+  useEffect(() => {
+    const unsub = api.onOpenFindBar?.(() => {
+      useBrowserStore.getState().setFindBarOpen(true);
+    });
+    return () => {
+      unsub?.();
+    };
+  }, []);
+
   // Global browser shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
