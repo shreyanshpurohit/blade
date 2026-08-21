@@ -445,7 +445,7 @@ export function SettingsPage({ url }: { url?: string }) {
                 <button
                   type="button"
                   onClick={() => useBrowserStore.getState().setVerticalTabs(false)}
-                  className={`p-3.5 rounded-2xl border text-left flex items-start gap-3 transition-all ${
+                  className={`p-3 rounded-2xl border text-left flex items-center gap-3 transition-all ${
                     !(useBrowserStore.getState().sidebarOpen && useBrowserStore.getState().sidebarPanel === 'tabs')
                       ? 'bg-white/[0.12] border-[var(--theme-primary)] shadow-sm'
                       : 'bg-white/[0.04] border-white/10 hover:bg-white/[0.08]'
@@ -454,21 +454,18 @@ export function SettingsPage({ url }: { url?: string }) {
                   <div className="w-8 h-8 rounded-xl bg-white/[0.08] flex items-center justify-center shrink-0 text-[var(--theme-primary)]">
                     <Icon name="window" size={16} strokeWidth={2} />
                   </div>
-                  <div>
-                    <div className="text-xs font-semibold text-white flex items-center gap-1.5">
-                      <span>Horizontal Tabs</span>
-                      {!(useBrowserStore.getState().sidebarOpen && useBrowserStore.getState().sidebarPanel === 'tabs') && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--theme-primary-soft)] text-[var(--theme-primary)] font-medium">Active</span>
-                      )}
-                    </div>
-                    <div className="text-[11px] text-white/50 mt-0.5">Classic Chrome-style tab strip positioned along the top.</div>
+                  <div className="text-xs font-semibold text-white flex items-center gap-1.5">
+                    <span>Horizontal Tabs</span>
+                    {!(useBrowserStore.getState().sidebarOpen && useBrowserStore.getState().sidebarPanel === 'tabs') && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--theme-primary-soft)] text-[var(--theme-primary)] font-medium">Active</span>
+                    )}
                   </div>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => useBrowserStore.getState().setVerticalTabs(true)}
-                  className={`p-3.5 rounded-2xl border text-left flex items-start gap-3 transition-all ${
+                  className={`p-3 rounded-2xl border text-left flex items-center gap-3 transition-all ${
                     (useBrowserStore.getState().sidebarOpen && useBrowserStore.getState().sidebarPanel === 'tabs')
                       ? 'bg-white/[0.12] border-[var(--theme-primary)] shadow-sm'
                       : 'bg-white/[0.04] border-white/10 hover:bg-white/[0.08]'
@@ -477,14 +474,11 @@ export function SettingsPage({ url }: { url?: string }) {
                   <div className="w-8 h-8 rounded-xl bg-white/[0.08] flex items-center justify-center shrink-0 text-[var(--theme-primary)]">
                     <Icon name="sidebar" size={16} strokeWidth={2} />
                   </div>
-                  <div>
-                    <div className="text-xs font-semibold text-white flex items-center gap-1.5">
-                      <span>Vertical Tabs</span>
-                      {(useBrowserStore.getState().sidebarOpen && useBrowserStore.getState().sidebarPanel === 'tabs') && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--theme-primary-soft)] text-[var(--theme-primary)] font-medium">Active</span>
-                      )}
-                    </div>
-                    <div className="text-[11px] text-white/50 mt-0.5">Zen / Edge-style vertical tab drawer on the left side.</div>
+                  <div className="text-xs font-semibold text-white flex items-center gap-1.5">
+                    <span>Vertical Tabs</span>
+                    {(useBrowserStore.getState().sidebarOpen && useBrowserStore.getState().sidebarPanel === 'tabs') && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--theme-primary-soft)] text-[var(--theme-primary)] font-medium">Active</span>
+                    )}
                   </div>
                 </button>
               </div>
