@@ -1,19 +1,36 @@
-import { useState } from 'react';
-import { createPortal } from 'react-dom';
 import type { TabState } from '@shared/types';
 import { useBrowserStore } from '../../store/browserStore';
 import { Icon } from '../common/Icon';
+import { api } from '../../lib/api';
 
 interface TabProps {
   tab: TabState;
   active: boolean;
   compact?: boolean;
+  onDragStart?: (e: React.DragEvent, tab: TabState) => void;
+  onDragOver?: (e: React.DragEvent, tab: TabState) => void;
+  onDragLeave?: (e: React.DragEvent, tab: TabState) => void;
+  onDrop?: (e: React.DragEvent, tab: TabState) => void;
+  onDragEnd?: (e: React.DragEvent) => void;
+  isDragging?: boolean;
+  dropPosition?: 'left' | 'right' | 'center' | null;
 }
 
-export default function Tab({ tab, active, compact }: TabProps) {
-  const { activateTab, closeTab, togglePin, toggleMute, hibernate } = useBrowserStore();
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [menuPos, setMenuPos] = useState({ x: 0, y: 0 });
+export default function Tab({
+  tab,
+  active,
+  compact,
+  onDragStart,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+  onDragEnd,
+  isDragging,
+  dropPosition,
+}: TabProps) {
+  const { activateTab, closeTab, toggleMute } = useBrowserStore();
+  const groups = useBrowserStore((s) => s.groups);
+  const group = tab.groupId ? groups.find((g) => g.id === tab.groupId) : undefined;
 
   const isSettings = tab.url.startsWith('lumen://settings');
   const favicon = isSettings ? (
@@ -30,19 +47,47 @@ export default function Tab({ tab, active, compact }: TabProps) {
 
   return (
     <div
+      draggable={true}
+      onDragStart={(e) => onDragStart?.(e, tab)}
+      onDragOver={(e) => onDragOver?.(e, tab)}
+      onDragLeave={(e) => onDragLeave?.(e, tab)}
+      onDrop={(e) => onDrop?.(e, tab)}
+      onDragEnd={(e) => onDragEnd?.(e)}
       onClick={() => activateTab(tab.id)}
       onAuxClick={(e) => e.button === 1 && closeTab(tab.id)}
       onContextMenu={(e) => {
         e.preventDefault();
-        setMenuPos({ x: e.clientX, y: e.clientY });
-        setMenuOpen(true);
+        e.stopPropagation();
+        void api.tabs.showContextMenu(tab.id, { x: e.clientX, y: e.clientY });
       }}
-      className={`group h-8 flex items-center gap-2 px-3 rounded-lg transition-all duration-200 cursor-pointer select-none relative ${
+      style={group && !compact ? { borderBottomColor: `${group.color}cc`, borderBottomWidth: '2px', borderBottomStyle: 'solid' } : undefined}
+      className={`group h-8 flex items-center gap-2 px-3 rounded-lg transition-all duration-200 ease-out cursor-pointer select-none relative ${
         active
           ? 'bg-white/[0.12] text-[var(--color-text-primary)] shadow-sm'
           : 'bg-transparent text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-white/[0.06]'
-      } ${tab.hibernated ? 'opacity-50' : ''} ${compact ? 'w-9 justify-center px-0' : 'w-full'}`}
+      } ${tab.hibernated ? 'opacity-50' : ''} ${compact ? 'w-9 justify-center px-0' : 'w-full'} ${
+        isDragging ? 'opacity-40 scale-[0.96] blur-[1px]' : ''
+      } ${
+        dropPosition === 'center' ? 'drop-indicator-group' : ''
+      }`}
     >
+      {/* Left drop insertion line */}
+      {dropPosition === 'left' && (
+        <div className="absolute left-0 top-1 bottom-1 w-1 drop-indicator-line z-30 pointer-events-none" />
+      )}
+
+      {/* Right drop insertion line */}
+      {dropPosition === 'right' && (
+        <div className="absolute right-0 top-1 bottom-1 w-1 drop-indicator-line z-30 pointer-events-none" />
+      )}
+
+      {/* Compact group color dot */}
+      {compact && group && (
+        <span
+          className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full"
+          style={{ backgroundColor: group.color }}
+        />
+      )}
       {tab.isLoading ? (
         <div className="w-3.5 h-3.5 border-[1.5px] border-[var(--color-text-secondary)] border-t-transparent animate-spin rounded-full shrink-0" />
       ) : (
@@ -87,60 +132,6 @@ export default function Tab({ tab, active, compact }: TabProps) {
           </button>
         </>
       )}
-
-      {/* Context menu */}
-      {menuOpen && createPortal((
-        <div
-          className="fixed inset-0 z-50"
-          onClick={(e) => {
-            e.stopPropagation();
-            setMenuOpen(false);
-          }}
-          onContextMenu={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setMenuOpen(false);
-          }}
-        >
-          <div
-            className="absolute glass-panel p-1.5 min-w-[180px] z-50 animate-menu-in"
-            style={{ left: menuPos.x, top: menuPos.y }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <CtxItem
-              label={tab.pinned ? 'Unpin Tab' : 'Pin Tab'}
-              onClick={() => { togglePin(tab.id); setMenuOpen(false); }}
-            />
-            <CtxItem
-              label="Duplicate Tab"
-              onClick={() => { useBrowserStore.getState().createTab(tab.url); setMenuOpen(false); }}
-            />
-            <CtxItem
-              label="Hibernate Tab"
-              onClick={() => { hibernate(tab.id); setMenuOpen(false); }}
-            />
-            <div className="my-1 h-px bg-white/[0.08] mx-2" />
-            <CtxItem
-              label="Close Tab"
-              onClick={() => { closeTab(tab.id); setMenuOpen(false); }}
-              danger
-            />
-          </div>
-        </div>
-      ), document.body)}
     </div>
-  );
-}
-
-function CtxItem({ label, onClick, danger }: { label: string; onClick: () => void; danger?: boolean }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`w-full text-left px-3 py-1.5 text-[12px] font-medium rounded-md transition-colors
-        hover:bg-white/10
-        ${danger ? 'text-[var(--color-destructive)]' : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'}`}
-    >
-      {label}
-    </button>
   );
 }

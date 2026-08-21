@@ -21,7 +21,7 @@ import { listDownloads, pauseDownload, resumeDownload, cancelDownload } from './
 import { listPasswords, savePassword, removePassword } from './store/passwords';
 
 function managerFor(event: Electron.IpcMainInvokeEvent) {
-  const win = BrowserWindow.fromWebContents(event.sender);
+  const win = BrowserWindow.fromWebContents(event.sender) ?? WindowManager.primaryWindow();
   if (!win) throw new Error('No window for IPC sender');
   const tm = WindowManager.tabManagerFor(win.id);
   if (!tm) throw new Error('No tab manager for window');
@@ -38,7 +38,16 @@ export function registerIpc() {
   ipcMain.handle(IPC.TabGoForward, (e, id: string) => managerFor(e).tm.goForward(id));
   ipcMain.handle(IPC.TabReload, (e, id: string) => managerFor(e).tm.reload(id));
   ipcMain.handle(IPC.TabReloadIgnoringCache, (e, id: string) => managerFor(e).tm.reloadIgnoringCache(id));
-  ipcMain.handle(IPC.TabFind, (e, query: string, id?: string) => managerFor(e).tm.findInPage(query, id));
+  ipcMain.handle(IPC.TabFind, (e, query: string, options?: Electron.FindInPageOptions, id?: string) =>
+    managerFor(e).tm.findInPage(query, options, id),
+  );
+  ipcMain.handle(IPC.TabStopFind, (e, action?: 'clearSelection' | 'keepSelection' | 'activateSelection', id?: string) =>
+    managerFor(e).tm.stopFindInPage(action, id),
+  );
+  ipcMain.handle(IPC.OpenFindBar, (e) => {
+    const { win } = managerFor(e);
+    win.webContents.send(IPC.OpenFindBarEvent);
+  });
   ipcMain.handle(IPC.TabStop, (e, id: string) => managerFor(e).tm.stop(id));
   ipcMain.handle(IPC.TabTogglePin, (e, id: string) => managerFor(e).tm.togglePin(id));
   ipcMain.handle(IPC.TabToggleMute, (e, id: string) => managerFor(e).tm.toggleMute(id));
@@ -63,6 +72,12 @@ export function registerIpc() {
     managerFor(e).tm.toggleDevTools(id, mode),
   );
   ipcMain.handle(IPC.TabViewSource, (e, id?: string) => managerFor(e).tm.viewSource(id));
+  ipcMain.handle(IPC.ShowTabContextMenu, (e, tabId: string, position?: { x: number; y: number }) =>
+    managerFor(e).tm.showTabContextMenu(tabId, position),
+  );
+  ipcMain.handle(IPC.ShowTabBarContextMenu, (e, position?: { x: number; y: number }) =>
+    managerFor(e).tm.showTabBarContextMenu(position),
+  );
 
   ipcMain.handle(IPC.GetState, (e) => {
     const { win } = managerFor(e);
@@ -78,24 +93,59 @@ export function registerIpc() {
     const { tm } = managerFor(e);
     tm.setSidebarPinned(pinned);
   });
+  ipcMain.handle(IPC.SetSidebarWidth, (e, px: number) => {
+    const { tm } = managerFor(e);
+    tm.setSidebarWidth(px);
+  });
 
   ipcMain.handle(IPC.GetSuggestions, async (_e, query: string): Promise<Suggestion[]> => {
-    if (!query.trim()) return [];
-    const history = searchHistory(query, 5).map<Suggestion>((h) => ({
+    const trimmedQuery = query.trim();
+    if (trimmedQuery.length < 2) {
+      const topSites = listHistory('', 8).map<Suggestion>((h) => ({
+        type: 'top-site',
+        title: h.title || h.url,
+        url: h.url,
+      }));
+      const recentHistory = searchHistory('', 6).map<Suggestion>((h) => ({
+        type: 'history',
+        title: h.title || h.url,
+        url: h.url,
+      }));
+      
+      const topSiteUrls = new Set(topSites.map(s => s.url));
+      const filteredHistory = recentHistory.filter(h => !topSiteUrls.has(h.url));
+      
+      return [...topSites, ...filteredHistory].slice(0, 10);
+    }
+
+    const isUrl = trimmedQuery.includes('.') && !trimmedQuery.includes(' ');
+    const suggestions: Suggestion[] = [];
+
+    if (isUrl) {
+      suggestions.push({ type: 'url', title: trimmedQuery, url: trimmedQuery });
+    }
+
+    const history = searchHistory(trimmedQuery, 6).map<Suggestion>((h) => ({
       type: 'history',
       title: h.title || h.url,
       url: h.url,
     }));
-    const bookmarks = searchBookmarks(query, 3).map<Suggestion>((b) => ({
-      type: 'bookmark',
-      title: b.title,
-      url: b.url ?? '',
-    }));
-    return [
-      ...bookmarks,
-      ...history,
-      { type: 'search', title: `Search for "${query}"`, url: query },
-    ];
+    suggestions.push(...history);
+
+    const historyUrls = new Set(history.map((h) => h.url));
+    const bookmarks = searchBookmarks(trimmedQuery, 4)
+      .filter((b) => b.url && !historyUrls.has(b.url))
+      .map<Suggestion>((b) => ({
+        type: 'bookmark',
+        title: b.title,
+        url: b.url ?? '',
+      }));
+    
+    suggestions.push(...bookmarks);
+
+    suggestions.push({ type: 'search', title: `Search for "${trimmedQuery}"`, url: trimmedQuery });
+
+    return suggestions.slice(0, 10);
   });
 
   ipcMain.handle(IPC.WindowControl, (e, action: 'minimize' | 'maximize' | 'close') => {
@@ -118,6 +168,16 @@ export function registerIpc() {
 
   ipcMain.handle(IPC.NewIncognitoWindow, () => {
     WindowManager.createWindow({ incognito: true });
+  });
+
+  ipcMain.handle(IPC.ShowPopup, (e, options: { type: string; x: number; y: number }) => {
+    const { win } = managerFor(e);
+    WindowManager.showPopup(win, options);
+  });
+
+  ipcMain.handle(IPC.ClosePopup, (e) => {
+    const { win } = managerFor(e);
+    WindowManager.closePopup(win);
   });
 
   ipcMain.handle(IPC.ShowAppMenu, (e, bounds: { x: number; y: number }) => {
@@ -325,4 +385,24 @@ export function registerIpc() {
     const { resetAllStats } = require('./shields/shields');
     resetAllStats();
   });
+
+  // Tab Group management
+  ipcMain.handle(IPC.TabGroupCreate, (e, name: string, color: string, tabIds: string[]) =>
+    managerFor(e).tm.createGroup(name, color, tabIds),
+  );
+  ipcMain.handle(IPC.TabGroupAddTab, (e, tabId: string, groupId: string) =>
+    managerFor(e).tm.addTabToGroup(tabId, groupId),
+  );
+  ipcMain.handle(IPC.TabGroupRemoveTab, (e, tabId: string) =>
+    managerFor(e).tm.removeTabFromGroup(tabId),
+  );
+  ipcMain.handle(IPC.TabGroupRename, (e, groupId: string, name: string) =>
+    managerFor(e).tm.renameGroup(groupId, name),
+  );
+  ipcMain.handle(IPC.TabGroupSetColor, (e, groupId: string, color: string) =>
+    managerFor(e).tm.setGroupColor(groupId, color),
+  );
+  ipcMain.handle(IPC.TabGroupDelete, (e, groupId: string) =>
+    managerFor(e).tm.deleteGroup(groupId),
+  );
 }

@@ -20,7 +20,7 @@ const managed = new Map<number, ManagedWindow>();
 // Chrome UI chrome height: tab bar (40) + address bar (52) = 92px overlay.
 // WebContentsView bounds account for this so page content starts below the chrome.
 export const CHROME_HEIGHT = 92;
-export const SIDEBAR_WIDTH = 320;
+export const SIDEBAR_WIDTH = 240;
 
 export const WindowManager = {
   createWindow({ incognito }: CreateOptions): BrowserWindow {
@@ -79,7 +79,7 @@ export const WindowManager = {
 
     // Intercept window.open from the chrome renderer
     win.webContents.setWindowOpenHandler(({ url }) => {
-      if (url.includes('#/settings') || url.includes('#settings') || url === 'lumen://settings') {
+      if (url.includes('#/settings') || url.includes('#settings') || url === 'blade://settings' || url === 'lumen://settings') {
         tabManager.openSettingsTab();
         return { action: 'deny' };
       }
@@ -90,7 +90,7 @@ export const WindowManager = {
       return { action: 'deny' };
     });
 
-    if (process.env.LUMEN_DEV_SERVER_URL) {
+    if (process.env.BLADE_DEV_SERVER_URL || process.env.LUMEN_DEV_SERVER_URL) {
       win.loadURL(rendererEntry());
     } else {
       win.loadFile(rendererEntry());
@@ -140,24 +140,27 @@ export const WindowManager = {
     }
   },
 
-  appMenuView: null as any, // WebContentsView
-  appMenuVisible: false,
+  popupView: null as any,
+  popupLoaded: false,
+  popupVisible: false,
+  currentPopupType: '',
   suggestionsView: null as any,
   suggestionsVisible: false,
   downloadPopupView: null as any,
   downloadPopupVisible: false,
 
-  toggleAppMenu(parentWin: BrowserWindow, bounds: { x: number; y: number }) {
-    if (this.appMenuView && this.appMenuVisible) {
-      this.closeAppMenu(parentWin);
+  showPopup(parentWin: BrowserWindow, options: { type: string; x: number; y: number }) {
+    if (!options.type) return;
+    if (this.popupView && this.popupVisible && this.currentPopupType === options.type) {
+      this.closePopup(parentWin);
       return;
     }
 
     const { WebContentsView } = require('electron');
     const [winWidth, winHeight] = parentWin.getContentSize();
 
-    if (!this.appMenuView) {
-      this.appMenuView = new WebContentsView({
+    if (!this.popupView) {
+      this.popupView = new WebContentsView({
         webPreferences: {
           preload: preloadPath(),
           contextIsolation: true,
@@ -166,43 +169,71 @@ export const WindowManager = {
         },
       });
 
-      this.appMenuView.setBackgroundColor('#00000000');
-      const devUrl = process.env.LUMEN_DEV_SERVER_URL;
+      this.popupView.setBackgroundColor('#00000000');
 
-      this.appMenuView.webContents.on('before-input-event', (event: any, input: any) => {
+      this.popupView.webContents.on('before-input-event', (_event: any, input: any) => {
         if (input.type === 'keyDown' && input.key === 'Escape') {
-          this.closeAppMenu(parentWin);
+          this.closePopup(parentWin);
         }
       });
 
-      this.appMenuView.webContents.on('render-process-gone', (event: any, details: any) => {
-        console.error('menuView crashed:', details);
-        this.appMenuView = null;
-        this.appMenuVisible = false;
+      this.popupView.webContents.on('render-process-gone', (_event: any, details: any) => {
+        console.error('popupView crashed:', details);
+        this.popupView = null;
+        this.popupLoaded = false;
+        this.popupVisible = false;
+      });
+
+      const hash = `#/popup?type=${options.type}&x=${Math.round(options.x)}&y=${Math.round(options.y)}`;
+      const devUrl = process.env.BLADE_DEV_SERVER_URL || process.env.LUMEN_DEV_SERVER_URL;
+      if (devUrl) {
+        this.popupView.webContents.loadURL(`${devUrl}${hash}`);
+      } else {
+        this.popupView.webContents.loadFile(rendererEntry(), { hash });
+      }
+      this.popupLoaded = true;
+    } else {
+      // 0ms instantaneous switch: send IPC event without reloading the browser view
+      this.popupView.webContents.send(IPC.PopupOpen, {
+        type: options.type,
+        x: Math.round(options.x),
+        y: Math.round(options.y),
       });
     }
 
-    // Always append the view to bring it to the top of the z-index stack
-    // (since new tabs might have been added on top of it)
-    parentWin.contentView.addChildView(this.appMenuView);
+    try {
+      parentWin.contentView.addChildView(this.popupView);
+    } catch {
+      /* ignore */
+    }
+    this.popupVisible = true;
+    this.currentPopupType = options.type;
+    this.popupView.setBounds({ x: 0, y: 0, width: winWidth, height: winHeight });
+  },
 
-    this.appMenuVisible = true;
-    this.appMenuView.setBounds({ x: 0, y: 0, width: winWidth, height: winHeight });
-
-    const hash = `#/app-menu?x=${bounds.x}&y=${bounds.y}`;
-    const devUrl = process.env.LUMEN_DEV_SERVER_URL;
-    if (devUrl) {
-      this.appMenuView.webContents.loadURL(`${devUrl}${hash}`);
-    } else {
-      this.appMenuView.webContents.loadFile(rendererEntry(), { hash });
+  closePopup(parentWin?: BrowserWindow) {
+    if (this.popupView) {
+      this.popupVisible = false;
+      this.currentPopupType = '';
+      this.popupView.setBounds({ x: 0, y: 0, width: 0, height: 0 });
+      this.popupView.webContents.send(IPC.PopupClose);
+      const win = parentWin ?? this.primaryWindow();
+      if (win && !win.isDestroyed()) {
+        try {
+          win.contentView.removeChildView(this.popupView);
+        } catch {
+          /* ignore */
+        }
+      }
     }
   },
 
+  toggleAppMenu(parentWin: BrowserWindow, bounds: { x: number; y: number }) {
+    this.showPopup(parentWin, { type: 'menu', x: bounds.x, y: bounds.y });
+  },
+
   closeAppMenu(parentWin?: BrowserWindow) {
-    if (this.appMenuView) {
-      this.appMenuVisible = false;
-      this.appMenuView.setBounds({ x: 0, y: 0, width: 0, height: 0 });
-    }
+    this.closePopup(parentWin);
   },
 
   showSuggestions(parentWin: BrowserWindow, bounds: { x: number; y: number; width: number }, query: string) {
@@ -223,7 +254,7 @@ export const WindowManager = {
       height: Math.min(300, Math.max(180, contentHeight - Math.round(bounds.y) - 8)),
     });
     const hash = `#/suggestions?q=${encodeURIComponent(query)}`;
-    const devUrl = process.env.LUMEN_DEV_SERVER_URL;
+    const devUrl = process.env.BLADE_DEV_SERVER_URL || process.env.LUMEN_DEV_SERVER_URL;
     if (devUrl) this.suggestionsView.webContents.loadURL(`${devUrl}${hash}`);
     else this.suggestionsView.webContents.loadFile(rendererEntry(), { hash });
   },
@@ -252,7 +283,7 @@ export const WindowManager = {
         webPreferences: { preload: preloadPath(), contextIsolation: true, sandbox: false, nodeIntegration: false },
       });
       this.downloadPopupView.setBackgroundColor('#00000000');
-      const devUrl = process.env.LUMEN_DEV_SERVER_URL;
+      const devUrl = process.env.BLADE_DEV_SERVER_URL || process.env.LUMEN_DEV_SERVER_URL;
       if (devUrl) this.downloadPopupView.webContents.loadURL(`${devUrl}#/download-popup`);
       else this.downloadPopupView.webContents.loadFile(rendererEntry(), { hash: '#/download-popup' });
     }
@@ -285,6 +316,12 @@ export const WindowManager = {
     this.downloadPopupVisible = false;
     this.downloadPopupView.setBounds({ x: 0, y: 0, width: 0, height: 0 });
     if (parentWin && !parentWin.isDestroyed()) parentWin.webContents.send(IPC.DownloadPopupClosed);
+  },
+
+  broadcastToOverlays(state: WindowState) {
+    if (this.popupView && !this.popupView.webContents.isDestroyed()) {
+      this.popupView.webContents.send(IPC.StateChanged, state);
+    }
   },
 
   primaryWindow(): BrowserWindow | undefined {

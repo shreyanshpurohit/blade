@@ -21,6 +21,36 @@ export interface AppSettings {
   clearHistoryOnExit: boolean;
 }
 
+export interface ToolbarConfig {
+  backForward: boolean;
+  reload: boolean;
+  bookmark: boolean;
+  shields: boolean;
+  history: boolean;
+  downloads: boolean;
+  settings: boolean;
+}
+
+const DEFAULT_TOOLBAR_CONFIG: ToolbarConfig = {
+  backForward: true,
+  reload: true,
+  bookmark: true,
+  shields: true,
+  history: true,
+  downloads: true,
+  settings: true,
+};
+
+function getInitialToolbarConfig(): ToolbarConfig {
+  try {
+    const saved = localStorage.getItem('lumen_toolbar_config');
+    if (saved) return { ...DEFAULT_TOOLBAR_CONFIG, ...JSON.parse(saved) };
+  } catch {
+    /* fallback to default */
+  }
+  return DEFAULT_TOOLBAR_CONFIG;
+}
+
 interface BrowserStore extends WindowState {
   downloads: DownloadItem[];
   initialized: boolean;
@@ -33,6 +63,11 @@ interface BrowserStore extends WindowState {
   cornerRadius: number;
   colorTheme: ColorTheme;
 
+  // Toolbar customization
+  toolbarConfig: ToolbarConfig;
+  setToolbarButton: (key: keyof ToolbarConfig, enabled: boolean) => void;
+  resetToolbarConfig: () => void;
+
   init: () => Promise<void>;
   applyState: (s: WindowState) => void;
   refreshSettings: () => Promise<void>;
@@ -43,6 +78,7 @@ interface BrowserStore extends WindowState {
   closeTab: (id: string) => void;
   reopenClosedTab: () => void;
   activateTab: (id: string) => void;
+  moveTab: (id: string, to: number) => void;
   navigateActive: (url: string) => void;
   goBack: () => void;
   goForward: () => void;
@@ -52,6 +88,8 @@ interface BrowserStore extends WindowState {
   toggleMute: (id: string) => void;
   hibernate: (id: string) => void;
   toggleBookmarkActive: () => Promise<void>;
+  toggleVerticalTabs: () => void;
+  setVerticalTabs: (enabled: boolean) => void;
 
   setSidebar: (open: boolean, panel?: SidebarPanel) => void;
   setSidebarPinned: (pinned: boolean) => void;
@@ -63,6 +101,9 @@ interface BrowserStore extends WindowState {
   downloadPopupOpen: boolean;
   setDownloadPopupOpen: (open: boolean) => void;
   toggleDownloadPopup: () => void;
+  findBarOpen: boolean;
+  setFindBarOpen: (open: boolean) => void;
+  toggleFindBar: () => void;
 
   zoomIn: () => void;
   zoomOut: () => void;
@@ -77,6 +118,14 @@ interface BrowserStore extends WindowState {
   newIncognitoWindow: () => void;
   clearBrowsingData: () => Promise<void>;
   exit: () => void;
+
+  // Tab group actions
+  createGroup: (name: string, color: string, tabIds: string[]) => void;
+  addTabToGroup: (tabId: string, groupId: string) => void;
+  removeTabFromGroup: (tabId: string) => void;
+  renameGroup: (groupId: string, name: string) => void;
+  setGroupColor: (groupId: string, color: string) => void;
+  deleteGroup: (groupId: string) => void;
 
   activeTab: () => TabState | undefined;
 }
@@ -97,8 +146,31 @@ export const useBrowserStore = create<BrowserStore>((set, get) => ({
   colorTheme: DEFAULT_CUSTOMIZATION.colorTheme,
   downloads: [],
   downloadPopupOpen: false,
+  findBarOpen: false,
+  setFindBarOpen: (open) => set({ findBarOpen: open }),
+  toggleFindBar: () => set((state) => ({ findBarOpen: !state.findBarOpen })),
   initialized: false,
   activeBookmarked: false,
+
+  // Toolbar customization
+  toolbarConfig: getInitialToolbarConfig(),
+  setToolbarButton: (key, enabled) => {
+    const next = { ...get().toolbarConfig, [key]: enabled };
+    set({ toolbarConfig: next });
+    try {
+      localStorage.setItem('lumen_toolbar_config', JSON.stringify(next));
+    } catch {
+      /* ignore */
+    }
+  },
+  resetToolbarConfig: () => {
+    set({ toolbarConfig: DEFAULT_TOOLBAR_CONFIG });
+    try {
+      localStorage.setItem('lumen_toolbar_config', JSON.stringify(DEFAULT_TOOLBAR_CONFIG));
+    } catch {
+      /* ignore */
+    }
+  },
 
   // Shared glass-theme defaults
   glassOpacity: DEFAULT_CUSTOMIZATION.glassOpacity,
@@ -207,6 +279,7 @@ export const useBrowserStore = create<BrowserStore>((set, get) => ({
   closeTab: (id) => void api.tabs.close(id),
   reopenClosedTab: () => void api.tabs.reopenClosed(),
   activateTab: (id) => void api.tabs.activate(id),
+  moveTab: (id, to) => void api.tabs.move(id, to),
 
   navigateActive: (url) => {
     const id = get().activeTabId;
@@ -237,6 +310,31 @@ export const useBrowserStore = create<BrowserStore>((set, get) => ({
     if (!tab || !tab.url.startsWith('http')) return;
     const result = (await api.bookmarks.toggle(tab.title, tab.url)) as { bookmarked: boolean };
     set({ activeBookmarked: result.bookmarked });
+  },
+
+  toggleVerticalTabs: () => {
+    const isVertical = get().sidebarOpen && get().sidebarPanel === 'tabs';
+    if (isVertical) {
+      get().setSidebar(false);
+      void api.settings.set('verticalTabs', 'false');
+    } else {
+      get().setSidebarPinned(true);
+      get().setSidebar(true, 'tabs');
+      void api.settings.set('verticalTabs', 'true');
+    }
+  },
+
+  setVerticalTabs: (enabled: boolean) => {
+    if (enabled) {
+      get().setSidebarPinned(true);
+      get().setSidebar(true, 'tabs');
+      void api.settings.set('verticalTabs', 'true');
+    } else {
+      if (get().sidebarPanel === 'tabs') {
+        get().setSidebar(false);
+      }
+      void api.settings.set('verticalTabs', 'false');
+    }
   },
 
   setSidebar: (open, panel) => {
@@ -313,6 +411,14 @@ export const useBrowserStore = create<BrowserStore>((set, get) => ({
   },
   exit: () => void api.app.exit(),
 
+  // Tab group actions
+  createGroup: (name, color, tabIds) => void api.groups.create(name, color, tabIds),
+  addTabToGroup: (tabId, groupId) => void api.groups.addTab(tabId, groupId),
+  removeTabFromGroup: (tabId) => void api.groups.removeTab(tabId),
+  renameGroup: (groupId, name) => void api.groups.rename(groupId, name),
+  setGroupColor: (groupId, color) => void api.groups.setColor(groupId, color),
+  deleteGroup: (groupId) => void api.groups.delete(groupId),
+
   activeTab: () => get().tabs.find((t) => t.id === get().activeTabId),
 }));
 
@@ -334,8 +440,7 @@ function handleMenuAction(action: string, s: BrowserStore) {
       break;
     }
     case 'menu:find': {
-      const query = window.prompt('Find in page');
-      if (query) void api.tabs.find(query);
+      s.setFindBarOpen(true);
       break;
     }
     case 'menu:savePage': s.savePage(); break;

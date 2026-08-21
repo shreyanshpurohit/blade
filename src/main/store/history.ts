@@ -14,7 +14,7 @@ export function extractDomain(rawUrl: string): string {
 }
 
 export function recordVisit(url: string, title: string, dwellMs = 0) {
-  if (!url || url.startsWith('about:') || url.startsWith('chrome:') || url.startsWith('lumen:')) return;
+  if (!url || url.startsWith('about:') || url.startsWith('chrome:') || url.startsWith('blade:') || url.startsWith('lumen:')) return;
 
   const now = Date.now();
   const domain = extractDomain(url);
@@ -51,7 +51,7 @@ export function recordVisit(url: string, title: string, dwellMs = 0) {
 }
 
 export function updateDwellTime(url: string, additionalMs: number) {
-  if (!url || additionalMs <= 0 || url.startsWith('about:') || url.startsWith('chrome:') || url.startsWith('lumen:')) {
+  if (!url || additionalMs <= 0 || url.startsWith('about:') || url.startsWith('chrome:') || url.startsWith('blade:') || url.startsWith('lumen:')) {
     return;
   }
   try {

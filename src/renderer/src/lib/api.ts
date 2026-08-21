@@ -1,9 +1,10 @@
-import type { LumenApi } from '../../../preload';
+import type { BladeApi, LumenApi } from '../../../preload';
 
 declare global {
   interface Window {
+    blade: BladeApi;
     lumen: LumenApi;
   }
 }
 
-export const api = window.lumen;
+export const api = window.blade || window.lumen;

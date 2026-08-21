@@ -27,15 +27,26 @@ app.commandLine.appendSwitch('enable-quic');
 app.commandLine.appendSwitch('enable-fast-unload');
 app.commandLine.appendSwitch('enable-v8-idle-tasks');
 app.commandLine.appendSwitch('disable-background-timer-throttling');
-if (process.platform === 'linux') {
-  app.commandLine.appendSwitch('disable-gpu-compositing');
-}
+app.commandLine.appendSwitch('enable-pointer-lock-options');
 app.commandLine.appendSwitch(
   'enable-features',
-  'ParallelDownloading,BackForwardCache,WebAssemblySimd',
+  'ParallelDownloading,BackForwardCache,WebAssemblySimd,PointerLockOptions,RawMouseEvents',
 );
 
+export function cleanUserAgent(rawUa?: string): string {
+  const ua = rawUa || app.userAgentFallback || '';
+  return ua
+    .replace(/Electron\/\S+\s?/g, '')
+    .replace(/blade\/\S+\s?/g, '')
+    .replace(/Blade\/\S+\s?/g, '')
+    .replace(/lumen\/\S+\s?/g, '')
+    .replace(/Lumen\/\S+\s?/g, '')
+    .trim();
+}
+
 app.whenReady().then(() => {
+  app.userAgentFallback = cleanUserAgent(app.userAgentFallback);
+  session.defaultSession.setUserAgent(cleanUserAgent(session.defaultSession.getUserAgent()));
   initDatabase();
   installShieldsOnSession(session.defaultSession);
   setupDownloadHandling();
@@ -60,8 +71,8 @@ app.on('will-quit', () => {
 
 // Renderer entry resolution: dev server in dev, built files in prod.
 export function rendererEntry(): string {
-  if (process.env.LUMEN_DEV_SERVER_URL) {
-    return process.env.LUMEN_DEV_SERVER_URL;
+  if (process.env.BLADE_DEV_SERVER_URL || process.env.LUMEN_DEV_SERVER_URL) {
+    return (process.env.BLADE_DEV_SERVER_URL || process.env.LUMEN_DEV_SERVER_URL)!;
   }
   return path.join(__dirname, '../renderer/index.html');
 }

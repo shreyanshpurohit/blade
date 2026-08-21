@@ -340,7 +340,7 @@ export function AppMenu({ isOpen, onClose, anchorRef, standalone = false, custom
         />
         <MenuItem
           icon="shield-check"
-          label="Lumen Shields Stats"
+          label="Blade Shields Stats"
           onClick={() => handleAction(() => setSidebar(true, 'shields'))}
         />
       </MenuItemWithSubmenu>
@@ -357,7 +357,7 @@ export function AppMenu({ isOpen, onClose, anchorRef, standalone = false, custom
       >
         <MenuItem
           icon="info"
-          label="About Lumen Browser"
+          label="About Blade Browser"
           onClick={() => handleAction(() => openSettings('about'))}
         />
         <MenuItem

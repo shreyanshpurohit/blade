@@ -33,6 +33,13 @@
   --theme-primary: #e8b86a;
   --theme-primary-soft: rgba(232, 184, 106, 0.18);
   --font-sans: 'Bitcount Prop Single', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  /* ── Motion System ── */
+  --ease-out-snap: cubic-bezier(0.22, 0.68, 0, 1);
+  --ease-out-smooth: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-settle: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-interactive: cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
 /* Color themes keep the same layout while changing the browser's atmosphere. */
@@ -175,7 +182,7 @@ body {
   border-bottom: 1px solid var(--color-border);
   transform: translateZ(0);
   backface-visibility: hidden;
-  transition: background 300ms ease;
+  transition: background 320ms var(--ease-settle), border-color 320ms var(--ease-settle);
 }
 
 .glass-panel {
@@ -186,6 +193,9 @@ body {
   border-radius: var(--radius-glass);
   transform: translateZ(0);
   backface-visibility: hidden;
+  transition: background 280ms var(--ease-settle),
+              border-color 280ms var(--ease-settle),
+              box-shadow 280ms var(--ease-settle);
 }
 
 .glass-control {
@@ -225,7 +235,7 @@ body {
   border: 1px solid var(--color-border-light);
   border-radius: var(--radius-pill);
   background: var(--theme-hover-bg);
-  transition: background 180ms ease, border-color 180ms ease;
+  transition: background 200ms var(--ease-out-snap), border-color 200ms var(--ease-out-snap);
 }
 
 .toggle-track[data-checked='true'] {
@@ -241,7 +251,7 @@ body {
   background: var(--color-text-secondary);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
   transform: translateX(0);
-  transition: transform 180ms ease, background 180ms ease;
+  transition: transform 260ms var(--ease-spring), background 180ms var(--ease-out-snap);
 }
 
 .toggle-track[data-checked='true'] .toggle-thumb {
@@ -251,24 +261,65 @@ body {
 
 /* ── Animations ── */
 @keyframes animate-menu-in {
-  from {
-    transform: translateY(-4px) scale(0.985);
+  0% {
     opacity: 0;
+    transform: translateY(-8px) scale(0.96);
+    filter: blur(4px);
   }
-  to {
-    transform: translateY(0) scale(1);
+  70% {
     opacity: 1;
+    filter: blur(0);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes animate-menu-out {
+  to {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.97);
+    filter: blur(2px);
   }
 }
 
 @keyframes animate-tab-enter {
-  from {
-    transform: translateY(2px) scale(0.985);
+  0% {
     opacity: 0;
+    transform: scale(0.92) translateY(4px);
+    filter: blur(2px);
   }
-  to {
-    transform: scale(1);
+  60% {
     opacity: 1;
+    transform: scale(1.015) translateY(-1px);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+    filter: blur(0);
+  }
+}
+
+@keyframes animate-tab-close {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+    max-width: 200px;
+  }
+  50% {
+    opacity: 0;
+    transform: scale(0.85) translateY(8px);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.8) translateY(12px);
+    max-width: 0;
+    padding: 0;
+    margin: 0;
+    overflow: hidden;
   }
 }
 
@@ -282,26 +333,80 @@ body {
   100% { background-position: 200% center; }
 }
 
+@keyframes page-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(16px) scale(0.985);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes sidebar-enter {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes spin-smooth {
+  to { transform: rotate(360deg); }
+}
+
 .animate-menu-in {
-  animation: animate-menu-in 170ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  will-change: transform, opacity;
+  animation: animate-menu-in 200ms var(--ease-spring) forwards;
+  will-change: transform, opacity, filter;
+}
+
+.animate-menu-out {
+  animation: animate-menu-out 140ms var(--ease-out-snap) forwards;
+  will-change: transform, opacity, filter;
+  pointer-events: none;
 }
 
 .animate-tab-enter {
-  animation: animate-tab-enter 190ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: animate-tab-enter 280ms var(--ease-spring) forwards;
+  will-change: transform, opacity, filter;
+}
+
+.animate-tab-close {
+  animation: animate-tab-close 220ms var(--ease-out-snap) forwards;
+  will-change: transform, opacity, max-width;
+  pointer-events: none;
+}
+
+.animate-page-enter {
+  animation: page-enter 380ms var(--ease-settle) forwards;
+  will-change: transform, opacity;
+}
+
+.animate-sidebar-enter {
+  animation: sidebar-enter 260ms var(--ease-out-smooth) forwards;
   will-change: transform, opacity;
 }
 
 /* General transitions should never animate layout dimensions. */
 .transition-all {
-  transition-property: transform, opacity, color, background-color, border-color, box-shadow;
-  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  transition-property: transform, opacity, color, background-color, border-color, box-shadow, filter;
+  transition-duration: 180ms;
+  transition-timing-function: var(--ease-out-snap);
 }
 
 .transition-colors,
-.transition-opacity,
+.transition-opacity {
+  transition-duration: 150ms;
+  transition-timing-function: var(--ease-out-snap);
+}
+
 .transition-transform {
-  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  transition-duration: 200ms;
+  transition-timing-function: var(--ease-spring);
 }
 
 /* ── New Tab Page Animations ── */
@@ -311,19 +416,23 @@ body {
 }
 
 .animate-fade-in {
-  animation: fade-in 360ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: fade-in 360ms var(--ease-out-smooth) forwards;
 }
 
 .animate-fade-in-delay {
   opacity: 0;
-  animation: fade-in 360ms cubic-bezier(0.16, 1, 0.3, 1) 70ms forwards;
+  animation: fade-in 360ms var(--ease-out-smooth) 70ms forwards;
 }
 
 .animate-fade-in-delay-2 {
   opacity: 0;
-  animation: fade-in 360ms cubic-bezier(0.16, 1, 0.3, 1) 140ms forwards;
+  animation: fade-in 360ms var(--ease-out-smooth) 140ms forwards;
 }
 
+/* Loading spinner */
+.animate-spin {
+  animation: spin-smooth 600ms linear infinite;
+}
 
 ::-webkit-scrollbar {
   width: 5px;
@@ -360,19 +469,25 @@ body {
   width: 32px;
   height: 32px;
   border-radius: var(--radius-pill);
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--theme-hover-bg);
+  border: 1px solid var(--color-border-light);
   color: var(--color-text-secondary);
   transition-property: transform, opacity, color, background-color, border-color, box-shadow;
   transition-duration: 180ms;
-  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  transition-timing-function: var(--ease-out-snap);
   flex-shrink: 0;
 }
 
 .nav-pill:hover {
-  background: rgba(255, 255, 255, 0.14);
+  background: var(--theme-primary-soft);
+  border-color: color-mix(in srgb, var(--theme-primary) 30%, transparent);
   color: var(--color-text-primary);
-  border-color: rgba(255, 255, 255, 0.12);
+  transform: scale(1.05);
+}
+
+.nav-pill:active {
+  transform: scale(0.94);
+  transition-duration: 60ms;
 }
 
 .nav-pill:disabled {
@@ -386,14 +501,37 @@ body {
   border-color: color-mix(in srgb, var(--theme-primary) 42%, transparent);
 }
 
-.nav-pill {
-  background: var(--theme-hover-bg);
-  border-color: var(--color-border-light);
+/* ── Drag & Drop Indicators ── */
+.drop-indicator-line {
+  background: var(--theme-primary);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--theme-primary) 60%, transparent),
+              0 0 4px color-mix(in srgb, var(--theme-primary) 40%, transparent);
+  border-radius: 9999px;
+  transition: opacity 120ms var(--ease-out-snap);
 }
 
-.nav-pill:hover {
-  background: var(--theme-primary-soft);
-  border-color: color-mix(in srgb, var(--theme-primary) 30%, transparent);
+.drop-indicator-group {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--theme-primary) 50%, transparent),
+              0 0 12px color-mix(in srgb, var(--theme-primary) 20%, transparent);
+  background: color-mix(in srgb, var(--theme-primary) 10%, transparent);
+  border-radius: var(--radius-tab);
+  transition: box-shadow 150ms var(--ease-out-snap),
+              background 150ms var(--ease-out-snap);
+}
+
+/* ── Tab Group Styling ── */
+.tab-group-chip {
+  transition: transform 180ms var(--ease-spring),
+              background-color 180ms var(--ease-out-snap),
+              box-shadow 180ms var(--ease-out-snap);
+}
+
+.tab-group-chip:hover {
+  transform: scale(1.03);
+}
+
+.tab-group-chip:active {
+  transform: scale(0.97);
 }
 
 /* Internal pages inherit the exact same surfaces as browser chrome. */
@@ -430,12 +568,18 @@ body {
   border: 1px solid var(--color-border-light);
   background: var(--theme-hover-bg);
   color: var(--color-text-primary);
-  transition: background-color 180ms cubic-bezier(0.16, 1, 0.3, 1), border-color 180ms cubic-bezier(0.16, 1, 0.3, 1), color 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  transition: background-color 180ms var(--ease-out-snap), border-color 180ms var(--ease-out-snap), color 180ms var(--ease-out-snap), transform 180ms var(--ease-spring);
 }
 
 .settings-action-button:hover {
   background: var(--theme-primary-soft);
   border-color: color-mix(in srgb, var(--theme-primary) 42%, transparent);
+  transform: scale(1.02);
+}
+
+.settings-action-button:active {
+  transform: scale(0.97);
+  transition-duration: 60ms;
 }
 
 .settings-danger-button {
@@ -447,6 +591,12 @@ body {
 .settings-danger-button:hover {
   background: color-mix(in srgb, var(--color-destructive) 18%, transparent);
   border-color: color-mix(in srgb, var(--color-destructive) 58%, transparent);
+  transform: scale(1.02);
+}
+
+.settings-danger-button:active {
+  transform: scale(0.97);
+  transition-duration: 60ms;
 }
 
 .theme-segmented-control {
@@ -456,6 +606,7 @@ body {
 
 .theme-segmented-option {
   color: var(--color-text-secondary);
+  transition: color 150ms var(--ease-out-snap), background 150ms var(--ease-out-snap);
 }
 
 .theme-segmented-option:hover,
@@ -489,6 +640,7 @@ body {
 
 .suggestions-overlay-item {
   color: var(--color-text-secondary);
+  transition: color 120ms var(--ease-out-snap), background 120ms var(--ease-out-snap);
 }
 
 .suggestions-overlay-item:hover {
@@ -525,6 +677,7 @@ body {
 
 .themed-select-option {
   color: var(--color-text-secondary);
+  transition: color 120ms var(--ease-out-snap), background 120ms var(--ease-out-snap);
 }
 
 .themed-select-option:hover {
@@ -542,6 +695,7 @@ body {
 
 .sidebar-context-item {
   color: var(--color-text-secondary);
+  transition: color 120ms var(--ease-out-snap), background 120ms var(--ease-out-snap);
 }
 
 .sidebar-context-item:hover {
@@ -562,6 +716,10 @@ body {
   color: color-mix(in srgb, var(--color-text-primary) 42%, transparent) !important;
 }
 
+.history-entry {
+  transition: background 120ms var(--ease-out-snap);
+}
+
 .history-entry:hover {
   background: var(--theme-hover-bg);
 }
@@ -574,6 +732,7 @@ body {
 
 .history-entry-remove {
   opacity: 0;
+  transition: opacity 120ms var(--ease-out-snap), color 120ms var(--ease-out-snap), background 120ms var(--ease-out-snap);
 }
 
 .history-entry:hover .history-entry-remove,
@@ -641,7 +800,8 @@ body {
 }
 
 .page-shell-shifted {
-  margin-left: 320px;
+  margin-left: 240px;
+  transition: margin-left 260ms var(--ease-out-smooth);
 }
 
 .settings-page main,

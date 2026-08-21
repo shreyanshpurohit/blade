@@ -1,5 +1,6 @@
-appId: com.lumen.browser
-productName: Lumen
+appId: com.blade.browser
+productName: Blade
+npmRebuild: false
 directories:
   output: release
   buildResources: build

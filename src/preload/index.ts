@@ -15,7 +15,9 @@ const api = {
     goForward: (id: string) => invoke(IPC.TabGoForward, id),
     reload: (id: string) => invoke(IPC.TabReload, id),
     reloadIgnoringCache: (id: string) => invoke(IPC.TabReloadIgnoringCache, id),
-    find: (query: string, id?: string) => invoke(IPC.TabFind, query, id),
+    find: (query: string, options?: any, id?: string) => invoke(IPC.TabFind, query, options, id),
+    stopFind: (action?: 'clearSelection' | 'keepSelection' | 'activateSelection', id?: string) =>
+      invoke(IPC.TabStopFind, action, id),
     stop: (id: string) => invoke(IPC.TabStop, id),
     togglePin: (id: string) => invoke(IPC.TabTogglePin, id),
     toggleMute: (id: string) => invoke(IPC.TabToggleMute, id),
@@ -32,17 +34,39 @@ const api = {
     toggleDevTools: (id?: string, mode?: 'right' | 'bottom' | 'detach') =>
       invoke(IPC.TabToggleDevTools, id, mode),
     viewSource: (id?: string) => invoke(IPC.TabViewSource, id),
+    showContextMenu: (tabId: string, position?: { x: number; y: number }) =>
+      invoke(IPC.ShowTabContextMenu, tabId, position),
+    showTabBarContextMenu: (position?: { x: number; y: number }) =>
+      invoke(IPC.ShowTabBarContextMenu, position),
+  },
+  groups: {
+    create: (name: string, color: string, tabIds: string[]) =>
+      invoke(IPC.TabGroupCreate, name, color, tabIds),
+    addTab: (tabId: string, groupId: string) =>
+      invoke(IPC.TabGroupAddTab, tabId, groupId),
+    removeTab: (tabId: string) =>
+      invoke(IPC.TabGroupRemoveTab, tabId),
+    rename: (groupId: string, name: string) =>
+      invoke(IPC.TabGroupRename, groupId, name),
+    setColor: (groupId: string, color: string) =>
+      invoke(IPC.TabGroupSetColor, groupId, color),
+    delete: (groupId: string) =>
+      invoke(IPC.TabGroupDelete, groupId),
   },
   app: {
     getState: () => invoke(IPC.GetState),
     getSuggestions: (q: string) => invoke(IPC.GetSuggestions, q),
+    openFindBar: () => invoke(IPC.OpenFindBar),
     setSidebar: (open: boolean, panel?: SidebarPanel) => invoke(IPC.SetSidebar, open, panel),
     setSidebarPinned: (pinned: boolean) => invoke(IPC.SetSidebarPinned, pinned),
+    setSidebarWidth: (px: number) => invoke(IPC.SetSidebarWidth, px),
     setChromeHeight: (px: number) => invoke(IPC.SetChromeHeight, px),
     windowControl: (a: 'minimize' | 'maximize' | 'close') => invoke(IPC.WindowControl, a),
     toggleFullscreen: () => invoke(IPC.WindowToggleFullscreen),
     newWindow: () => invoke(IPC.NewWindow),
     newIncognitoWindow: () => invoke(IPC.NewIncognitoWindow),
+    showPopup: (options: { type: string; x: number; y: number }) => invoke(IPC.ShowPopup, options),
+    closePopup: () => invoke(IPC.ClosePopup),
     showAppMenu: (bounds: { x: number; y: number }) => invoke(IPC.ShowAppMenu, bounds),
     showSuggestions: (bounds: { x: number; y: number; width: number }, query: string) => invoke(IPC.ShowSuggestions, bounds, query),
     updateSuggestions: (query: string) => invoke(IPC.UpdateSuggestions, query),
@@ -126,6 +150,26 @@ const api = {
     ipcRenderer.on(IPC.DownloadPopupClosed, listener);
     return () => ipcRenderer.removeListener(IPC.DownloadPopupClosed, listener);
   },
+  onPopupOpen: (cb: (data: { type: string; x: number; y: number }) => void) => {
+    const listener = (_e: unknown, data: { type: string; x: number; y: number }) => cb(data);
+    ipcRenderer.on(IPC.PopupOpen, listener);
+    return () => ipcRenderer.removeListener(IPC.PopupOpen, listener);
+  },
+  onPopupClose: (cb: () => void) => {
+    const listener = () => cb();
+    ipcRenderer.on(IPC.PopupClose, listener);
+    return () => ipcRenderer.removeListener(IPC.PopupClose, listener);
+  },
+  onFindResult: (cb: (data: { activeMatchOrdinal: number; matches: number; finalUpdate?: boolean }) => void) => {
+    const listener = (_e: unknown, data: { activeMatchOrdinal: number; matches: number; finalUpdate?: boolean }) => cb(data);
+    ipcRenderer.on(IPC.FindResult, listener);
+    return () => ipcRenderer.removeListener(IPC.FindResult, listener);
+  },
+  onOpenFindBar: (cb: () => void) => {
+    const listener = () => cb();
+    ipcRenderer.on(IPC.OpenFindBarEvent, listener);
+    return () => ipcRenderer.removeListener(IPC.OpenFindBarEvent, listener);
+  },
   onMenu: (cb: (action: string) => void) => {
     const channels = [
       'menu:newTab', 'menu:closeTab', 'menu:reload', 'menu:back', 'menu:forward',
@@ -141,5 +185,7 @@ const api = {
   },
 };
 
+export type BladeApi = typeof api;
 export type LumenApi = typeof api;
+contextBridge.exposeInMainWorld('blade', api);
 contextBridge.exposeInMainWorld('lumen', api);

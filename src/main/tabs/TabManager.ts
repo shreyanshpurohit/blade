@@ -6,11 +6,12 @@ import { IPC } from '../../shared/types';
 import type { TabState, TabGroupState, WindowState, SidebarPanel, SecurityState } from '../../shared/types';
 import { clearHistory, recordVisit, updateDwellTime } from '../store/history';
 import { getSetting, setSetting } from '../store/database';
-import { toggleBookmark } from '../store/bookmarks';
+import { toggleBookmark, addBookmark } from '../store/bookmarks';
 import { WindowManager, SIDEBAR_WIDTH } from '../windows/WindowManager';
 import { injectFingerprintProtection } from '../shields/fingerprint';
 import { installShieldsOnSession, COSMETIC_AD_BLOCK_CSS, getShieldsConfig } from '../shields/shields';
 import { recordCompletedDownload } from '../downloads';
+import { cleanUserAgent } from '../index';
 
 type Session = typeof electronSession.defaultSession;
 
@@ -27,11 +28,11 @@ interface Tab {
 const HIBERNATE_AFTER_MS = 15 * 60 * 1000;
 
 /** Default New Tab page loads the History-Terrain terminal view */
-export const NEW_TAB_URL = 'lumen://newtab';
+export const NEW_TAB_URL = 'blade://newtab';
 
 function detectSecurityState(url: string, certError = false): SecurityState {
   if (certError) return 'insecure';
-  if (!url || url.startsWith('about:') || url.startsWith('chrome:') || url.startsWith('lumen:') || url.startsWith('file:')) {
+  if (!url || url.startsWith('about:') || url.startsWith('chrome:') || url.startsWith('blade:') || url.startsWith('lumen:') || url.startsWith('file:')) {
     return 'internal';
   }
   if (url.startsWith('https://')) return 'secure';
@@ -49,6 +50,7 @@ export class TabManager {
   sidebarOpen = false;
   sidebarPinned = false;
   sidebarPanel: SidebarPanel = 'history';
+  sidebarWidth = 240;
   appMenuOpen = false;
   private chromeHeight = 92 + (getSetting('bookmarksBarVisible', 'true') === 'true' ? 36 : 0);
   private hibernateTimers = new Map<string, NodeJS.Timeout>();
@@ -65,12 +67,39 @@ export class TabManager {
     this.incognito = incognito;
     this.sidebarPinned = getSetting('sidebarPinned', 'false') === 'true';
     this.userAgent = getSetting('devUserAgent', 'default');
+    this.ses.setUserAgent(cleanUserAgent(this.ses.getUserAgent()));
     installShieldsOnSession(ses);
+
+    ses.setPermissionCheckHandler((_webContents, permission, requestingOrigin) => {
+      const p = permission as string;
+      if (
+        p === 'pointerLock' ||
+        p === 'fullscreen' ||
+        p === 'keyboardLock' ||
+        p === 'openExternal' ||
+        p === 'pointer-lock'
+      ) {
+        return true;
+      }
+      const decision = requestingOrigin ? getSetting(`permission:${requestingOrigin}:${permission}`, 'ask') : 'ask';
+      return decision === 'allow' || decision === 'ask';
+    });
+
     ses.setPermissionRequestHandler((webContents, permission, callback) => {
+      const p = permission as string;
+      if (
+        p === 'pointerLock' ||
+        p === 'fullscreen' ||
+        p === 'keyboardLock' ||
+        p === 'openExternal' ||
+        p === 'pointer-lock'
+      ) {
+        return callback(true);
+      }
       let origin = '';
       try { origin = new URL(webContents.getURL()).origin; } catch { /* non-web URL */ }
       const decision = origin ? getSetting(`permission:${origin}:${permission}`, 'ask') : 'ask';
-      callback(decision === 'allow');
+      callback(decision === 'allow' || (decision === 'ask' && permission !== 'notifications' && permission !== 'media'));
     });
 
     // Track window focus/blur for accurate dwell time estimation
@@ -83,7 +112,7 @@ export class TabManager {
   }
 
   private flushDwellTime() {
-    if (!this.incognito && this.activeUrl && !this.activeUrl.startsWith('lumen:') && !this.activeUrl.startsWith('about:')) {
+    if (!this.incognito && this.activeUrl && !this.activeUrl.startsWith('blade:') && !this.activeUrl.startsWith('lumen:') && !this.activeUrl.startsWith('about:')) {
       const elapsed = Date.now() - this.activeStartTime;
       if (elapsed > 1000) {
         updateDwellTime(this.activeUrl, elapsed);
@@ -94,7 +123,7 @@ export class TabManager {
 
   createTab(url?: string, opts: { activate?: boolean; pinned?: boolean; afterId?: string } = {}): string {
     const id = randomUUID();
-    const homepage = getSetting('homepage', 'lumen://newtab');
+    const homepage = getSetting('homepage', 'blade://newtab');
     const target = url ? normalizeUrl(url) : (homepage || NEW_TAB_URL);
     const isInternal = isInternalUrl(target);
 
@@ -104,6 +133,8 @@ export class TabManager {
         contextIsolation: true,
         sandbox: true,
         nodeIntegration: false,
+        backgroundThrottling: false,
+        disableHtmlFullscreenWindowResize: false,
       },
     });
 
@@ -116,7 +147,7 @@ export class TabManager {
       hibernatedUrl: null,
       state: {
         url: target,
-        title: isInternal ? (target.includes('settings') ? 'Settings' : 'Lumen Home') : 'Terminal Tab',
+        title: isInternal ? (target.includes('settings') ? 'Settings' : 'Blade Home') : 'Terminal Tab',
         favicon: null,
         isLoading: false,
         canGoBack: false,
@@ -145,8 +176,8 @@ export class TabManager {
   }
 
   openSettingsTab(section?: string) {
-    const targetUrl = section ? `lumen://settings#${section}` : 'lumen://settings';
-    const existing = this.tabs.find((t) => t.state.url.startsWith('lumen://settings'));
+    const targetUrl = section ? `blade://settings#${section}` : 'blade://settings';
+    const existing = this.tabs.find((t) => t.state.url.startsWith('blade://settings') || t.state.url.startsWith('lumen://settings'));
     if (existing) {
       existing.state.url = targetUrl;
       this.activateTab(existing.id);
@@ -160,7 +191,7 @@ export class TabManager {
     const isInternal = isInternalUrl(url);
     if (isInternal) {
       tab.state.url = url;
-      tab.state.title = url.includes('settings') ? 'Settings' : 'Lumen Home';
+      tab.state.title = url.includes('settings') ? 'Settings' : 'Blade Home';
       tab.state.favicon = null;
       tab.state.isLoading = false;
       tab.state.securityState = 'internal';
@@ -205,6 +236,28 @@ export class TabManager {
       if (cfg.enabled && cfg.adBlockEnabled) {
         wc.insertCSS(COSMETIC_AD_BLOCK_CSS).catch(() => {});
       }
+      // Robust 360-degree pointer lock support for web games on Linux/Electron
+      wc.executeJavaScript(`
+        if (!window.__lumen_pointer_lock_patched) {
+          window.__lumen_pointer_lock_patched = true;
+          try {
+            if (typeof Element !== 'undefined' && Element.prototype.requestPointerLock) {
+              const origRPL = Element.prototype.requestPointerLock;
+              Element.prototype.requestPointerLock = function(options) {
+                try {
+                  const res = origRPL.call(this, options);
+                  if (res && typeof res.catch === 'function') {
+                    return res.catch(() => origRPL.call(this));
+                  }
+                  return res;
+                } catch {
+                  return origRPL.call(this);
+                }
+              };
+            }
+          } catch {}
+        }
+      `).catch(() => {});
     });
 
     wc.on('did-navigate', (_e, url) => {
@@ -290,6 +343,16 @@ export class TabManager {
     // browser chrome for that mode as well, then restore it on exit.
     wc.on('enter-html-full-screen', () => this.setFullscreen(true));
     wc.on('leave-html-full-screen', () => this.setFullscreen(false));
+
+    wc.on('found-in-page', (_event, result) => {
+      if (tab.id === this.activeTabId && !this.win.isDestroyed()) {
+        this.win.webContents.send(IPC.FindResult, {
+          activeMatchOrdinal: result.activeMatchOrdinal,
+          matches: result.matches,
+          finalUpdate: result.finalUpdate,
+        });
+      }
+    });
 
     // Handle new tabs opened by web content
     wc.setWindowOpenHandler(({ url }) => {
@@ -440,6 +503,7 @@ export class TabManager {
       this.win.webContents.send('menu:focusAddressBar');
     } else if (isCmdOrCtrl && key === 'f') {
       this.win.webContents.send('menu:find');
+      this.win.webContents.send(IPC.OpenFindBarEvent);
     } else if (isCmdOrCtrl && key === 's') {
       this.win.webContents.send('menu:savePage');
     } else if (isCmdOrCtrl && key === ',') {
@@ -482,6 +546,19 @@ export class TabManager {
       const index = key === '9' ? this.tabs.length - 1 : Number(key) - 1;
       const target = this.tabs[index];
       if (target) this.activateTab(target.id);
+    } else if (input.alt && input.key === 'ArrowLeft') {
+      if (active) active.view.webContents.navigationHistory.goBack();
+    } else if (input.alt && input.key === 'ArrowRight') {
+      if (active) active.view.webContents.navigationHistory.goForward();
+    } else if (input.control && input.key === 'Tab') {
+      const idx = this.tabs.findIndex((t) => t.id === this.activeTabId);
+      if (input.shift) {
+        const prev = this.tabs[(idx - 1 + this.tabs.length) % this.tabs.length];
+        if (prev) this.activateTab(prev.id);
+      } else {
+        const next = this.tabs[(idx + 1) % this.tabs.length];
+        if (next) this.activateTab(next.id);
+      }
     } else {
       return;
     }
@@ -512,10 +589,34 @@ export class TabManager {
     this.tabs.find((t) => t.id === id)?.view.webContents.reloadIgnoringCache();
   }
 
-  findInPage(query: string, id?: string) {
-    if (!query.trim()) return;
-    const tab = this.tabs.find((candidate) => candidate.id === (id ?? this.activeTabId));
-    tab?.view.webContents.findInPage(query);
+  findInPage(query: string, options: Electron.FindInPageOptions = {}, id?: string) {
+    const tabId = id ?? this.activeTabId;
+    const tab = this.tabs.find((candidate) => candidate.id === tabId);
+    if (!tab || isInternalUrl(tab.state.url)) return;
+    if (!query || !query.trim()) {
+      try {
+        tab.view.webContents.stopFindInPage('clearSelection');
+      } catch {
+        /* ignore */
+      }
+      return;
+    }
+    try {
+      tab.view.webContents.findInPage(query, options);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  stopFindInPage(action: 'clearSelection' | 'keepSelection' | 'activateSelection' = 'clearSelection', id?: string) {
+    const tabId = id ?? this.activeTabId;
+    const tab = this.tabs.find((candidate) => candidate.id === tabId);
+    if (!tab || isInternalUrl(tab.state.url)) return;
+    try {
+      tab.view.webContents.stopFindInPage(action);
+    } catch {
+      /* ignore */
+    }
   }
 
   stop(id: string) {
@@ -598,11 +699,11 @@ export class TabManager {
   private applyUserAgent(webContents: Electron.WebContents) {
     const userAgents: Record<string, string> = {
       'safari-mac': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15',
-      'chrome-win': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-      'firefox-linux': 'Mozilla/5.0 (X11; Linux x86_64; rv:125.0) Gecko/20100101 Firefox/125.0',
+      'chrome-win': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36',
+      'firefox-linux': 'Mozilla/5.0 (X11; Linux x86_64; rv:134.0) Gecko/20100101 Firefox/134.0',
       'iphone-ios': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
     };
-    webContents.setUserAgent(userAgents[this.userAgent] || this.ses.getUserAgent());
+    webContents.setUserAgent(userAgents[this.userAgent] || cleanUserAgent(this.ses.getUserAgent()));
   }
 
   private clearHibernateTimer(id: string) {
@@ -659,13 +760,18 @@ export class TabManager {
     // is active, reserve the sidebar column even when it is not pinned so the
     // page cannot cover the open sidebar. Internal pages can still float.
     const dockSidebar = this.sidebarOpen && (this.sidebarPinned || !isInternalUrl(active.state.url));
-    const x = dockSidebar ? SIDEBAR_WIDTH : 0;
+    const x = dockSidebar ? this.sidebarWidth : 0;
     active.view.setBounds({
       x,
       y: this.chromeHeight,
       width: Math.max(0, width - x),
       height: Math.max(0, height - this.chromeHeight),
     });
+  }
+
+  setSidebarWidth(px: number) {
+    this.sidebarWidth = Math.max(160, Math.min(500, Math.round(px)));
+    this.relayout();
   }
 
   tabStates(): TabState[] {
@@ -680,7 +786,7 @@ export class TabManager {
 
   sessionUrls(): string[] {
     const urls = this.tabStates()
-      .filter((tab) => tab.url && tab.url !== 'lumen://newtab' && tab.url !== 'about:newtab' && tab.url !== 'about:blank')
+      .filter((tab) => tab.url && tab.url !== 'blade://newtab' && tab.url !== 'lumen://newtab' && tab.url !== 'about:newtab' && tab.url !== 'about:blank')
       .map((tab) => tab.url);
     const activeUrl = this.tabs.find((tab) => tab.id === this.activeTabId)?.state.url;
     return activeUrl && urls.includes(activeUrl)
@@ -885,6 +991,155 @@ export class TabManager {
     });
   }
 
+  showTabContextMenu(tabId: string, position?: { x: number; y: number }) {
+    const tab = this.tabs.find((t) => t.id === tabId);
+    if (!tab) return;
+    const isPinned = tab.pinned;
+    const isMuted = tab.state.muted;
+    const isHibernated = tab.hibernated;
+    const isVertical = this.sidebarOpen && this.sidebarPanel === 'tabs';
+
+    const template: Electron.MenuItemConstructorOptions[] = [
+      {
+        label: isPinned ? 'Unpin tab' : 'Pin tab',
+        click: () => this.togglePin(tabId),
+      },
+      {
+        label: 'Duplicate tab',
+        click: () => this.createTab(tab.state.url, { afterId: tabId }),
+      },
+      {
+        label: isMuted ? 'Unmute tab' : 'Mute tab',
+        click: () => this.toggleMute(tabId),
+      },
+      {
+        label: isHibernated ? 'Wake tab' : 'Hibernate tab',
+        click: () => this.hibernate(tabId),
+      },
+      { type: 'separator' },
+      {
+        label: isVertical ? 'Switch to horizontal tabs' : 'Switch to vertical tabs',
+        click: () => {
+          this.setSidebarOpen(!isVertical, 'tabs');
+          this.setSidebarPinned(!isVertical);
+          this.emitState();
+        },
+      },
+      { type: 'separator' },
+      {
+        label: 'Add to new group',
+        click: () => {
+          const domain = (() => {
+            try { return new URL(tab.state.url).hostname.replace(/^www\./, '').split('.')[0]; } catch { return ''; }
+          })();
+          const name = domain ? domain.charAt(0).toUpperCase() + domain.slice(1) : 'Group';
+          this.createGroup(name, '#6366f1', [tabId]);
+        },
+      },
+      {
+        label: 'Remove from group',
+        enabled: !!tab.groupId,
+        click: () => { tab.groupId = null; this.emitState(); },
+      },
+      {
+        label: 'Change group color',
+        enabled: !!tab.groupId,
+        submenu: [
+          { label: 'Purple', click: () => { if (tab.groupId) this.setGroupColor(tab.groupId, '#6366f1'); } },
+          { label: 'Blue',   click: () => { if (tab.groupId) this.setGroupColor(tab.groupId, '#3b82f6'); } },
+          { label: 'Green',  click: () => { if (tab.groupId) this.setGroupColor(tab.groupId, '#22c55e'); } },
+          { label: 'Yellow', click: () => { if (tab.groupId) this.setGroupColor(tab.groupId, '#eab308'); } },
+          { label: 'Red',    click: () => { if (tab.groupId) this.setGroupColor(tab.groupId, '#ef4444'); } },
+          { label: 'Pink',   click: () => { if (tab.groupId) this.setGroupColor(tab.groupId, '#ec4899'); } },
+          { label: 'Orange', click: () => { if (tab.groupId) this.setGroupColor(tab.groupId, '#f97316'); } },
+          { label: 'Slate',  click: () => { if (tab.groupId) this.setGroupColor(tab.groupId, '#374151'); } },
+        ],
+      },
+      { type: 'separator' },
+      {
+        label: 'Reload',
+        accelerator: 'Ctrl+R',
+        click: () => this.reload(tabId),
+      },
+      {
+        label: 'Close tab',
+        accelerator: 'Ctrl+W',
+        click: () => this.closeTab(tabId),
+      },
+      {
+        label: 'Close other tabs',
+        click: () => {
+          this.tabs
+            .filter((t) => t.id !== tabId && !t.pinned)
+            .forEach((t) => this.closeTab(t.id));
+        },
+      },
+      {
+        label: 'Close tabs to the right',
+        click: () => {
+          const idx = this.tabs.findIndex((t) => t.id === tabId);
+          if (idx !== -1) {
+            this.tabs
+              .slice(idx + 1)
+              .filter((t) => !t.pinned)
+              .forEach((t) => this.closeTab(t.id));
+          }
+        },
+      },
+    ];
+
+    Menu.buildFromTemplate(template).popup({
+      window: this.win,
+      ...(position ? { x: Math.round(position.x), y: Math.round(position.y) } : {}),
+    });
+  }
+
+  showTabBarContextMenu(position?: { x: number; y: number }) {
+    const isVertical = this.sidebarOpen && this.sidebarPanel === 'tabs';
+    const template: Electron.MenuItemConstructorOptions[] = [
+      {
+        label: 'New tab',
+        accelerator: 'Ctrl+T',
+        click: () => this.createTab(),
+      },
+      {
+        label: 'Reopen closed tab',
+        accelerator: 'Ctrl+Shift+T',
+        click: () => this.reopenClosedTab(),
+      },
+      { type: 'separator' },
+      {
+        label: isVertical ? 'Switch to horizontal tabs' : 'Switch to vertical tabs',
+        click: () => {
+          this.setSidebarOpen(!isVertical, 'tabs');
+          this.setSidebarPinned(!isVertical);
+          this.emitState();
+        },
+      },
+      { type: 'separator' },
+      {
+        label: 'Bookmark all tabs…',
+        accelerator: 'Ctrl+Shift+D',
+        click: () => {
+          this.tabs.forEach((t) => {
+            if (t.state.url && t.state.url.startsWith('http')) {
+              addBookmark(t.state.title || t.state.url, t.state.url);
+            }
+          });
+        },
+      },
+      {
+        label: 'Settings',
+        click: () => this.openSettingsTab(),
+      },
+    ];
+
+    Menu.buildFromTemplate(template).popup({
+      window: this.win,
+      ...(position ? { x: Math.round(position.x), y: Math.round(position.y) } : {}),
+    });
+  }
+
   toggleDevTools(id?: string, mode: 'right' | 'bottom' | 'detach' = 'right') {
     const tabId = id ?? this.activeTabId;
     const tab = this.tabs.find((t) => t.id === tabId);
@@ -923,8 +1178,68 @@ export class TabManager {
         this.pendingOverrides = {};
         const state = WindowManager.stateFor(this.win.id, currentOverrides);
         this.win.webContents.send(IPC.StateChanged, state);
+        WindowManager.broadcastToOverlays(state);
       });
     }
+  }
+
+
+  /** ── Tab Group Management ── */
+
+  createGroup(name: string, color: string, tabIds: string[]): string {
+    const id = randomUUID();
+    this.groups.push({ id, name, color, collapsed: false });
+    for (const tabId of tabIds) {
+      const tab = this.tabs.find((t) => t.id === tabId);
+      if (tab) tab.groupId = id;
+    }
+    this.emitState();
+    return id;
+  }
+
+  addTabToGroup(tabId: string, groupId: string) {
+    const tab = this.tabs.find((t) => t.id === tabId);
+    if (tab) {
+      tab.groupId = groupId;
+      this.emitState();
+    }
+  }
+
+  removeTabFromGroup(tabId: string) {
+    const tab = this.tabs.find((t) => t.id === tabId);
+    if (!tab || !tab.groupId) return;
+    const groupId = tab.groupId;
+    tab.groupId = null;
+    // Clean up group if it has no remaining members
+    const hasMembers = this.tabs.some((t) => t.groupId === groupId);
+    if (!hasMembers) {
+      this.groups = this.groups.filter((g) => g.id !== groupId);
+    }
+    this.emitState();
+  }
+
+  renameGroup(groupId: string, name: string) {
+    const g = this.groups.find((group) => group.id === groupId);
+    if (g) {
+      g.name = name;
+      this.emitState();
+    }
+  }
+
+  setGroupColor(groupId: string, color: string) {
+    const g = this.groups.find((group) => group.id === groupId);
+    if (g) {
+      g.color = color;
+      this.emitState();
+    }
+  }
+
+  deleteGroup(groupId: string) {
+    this.groups = this.groups.filter((g) => g.id !== groupId);
+    for (const tab of this.tabs) {
+      if (tab.groupId === groupId) tab.groupId = null;
+    }
+    this.emitState();
   }
 
   destroyAll() {
@@ -944,9 +1259,15 @@ export class TabManager {
 function isInternalUrl(url: string): boolean {
   if (!url) return true;
   return (
+    url === 'blade://newtab' ||
     url === 'lumen://newtab' ||
     url === 'about:newtab' ||
     url === 'about:blank' ||
+    url === 'blade://history' ||
+    url === 'lumen://history' ||
+    url === 'blade://downloads' ||
+    url === 'lumen://downloads' ||
+    url.startsWith('blade://settings') ||
     url.startsWith('lumen://settings') ||
     url === 'about:settings' ||
     url === 'chrome://settings'
@@ -963,9 +1284,12 @@ const SEARCH_ENGINES: Record<string, string> = {
 export function normalizeUrl(input: string): string {
   const trimmed = input.trim();
   if (isInternalUrl(trimmed)) {
-    return trimmed.startsWith('lumen://settings') || trimmed.includes('settings')
-      ? 'lumen://settings'
-      : 'lumen://newtab';
+    if (trimmed.startsWith('blade://settings') || trimmed.startsWith('lumen://settings') || trimmed.includes('settings')) {
+      return 'blade://settings';
+    }
+    if (trimmed.includes('history')) return 'blade://history';
+    if (trimmed.includes('downloads')) return 'blade://downloads';
+    return 'blade://newtab';
   }
   if (/^view-source:/i.test(trimmed)) return trimmed;
   if (/^[a-z]+:\/\//i.test(trimmed)) return trimmed;

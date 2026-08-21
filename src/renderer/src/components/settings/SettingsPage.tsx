@@ -13,7 +13,7 @@ const SEARCH_ENGINES = [
 ];
 
 const HOMEPAGES = [
-  { label: 'New Tab Page', value: 'lumen://newtab', description: 'Lumen internal page' },
+  { label: 'New Tab Page', value: 'blade://newtab', description: 'Blade internal page' },
   { label: 'Google', value: 'https://www.google.com', description: 'google.com' },
   { label: 'DuckDuckGo', value: 'https://duckduckgo.com', description: 'duckduckgo.com' },
   { label: 'YouTube', value: 'https://www.youtube.com', description: 'youtube.com' },
@@ -35,7 +35,7 @@ const SECTIONS: { id: string; label: string; icon: IconName }[] = [
   { id: 'search', label: 'Search Engine', icon: 'search' },
   { id: 'tabs', label: 'Tabs & Windows', icon: 'layers' },
   { id: 'performance', label: 'Performance', icon: 'bolt' },
-  { id: 'shields', label: 'Lumen Shields', icon: 'shield-check' },
+  { id: 'shields', label: 'Blade Shields', icon: 'shield-check' },
   { id: 'privacy', label: 'Privacy & Data', icon: 'lock' },
   { id: 'history', label: 'History', icon: 'clock' },
   { id: 'downloads', label: 'Downloads', icon: 'download' },
@@ -43,7 +43,7 @@ const SECTIONS: { id: string; label: string; icon: IconName }[] = [
   { id: 'permissions', label: 'Site Permissions', icon: 'shield' },
   { id: 'developer', label: 'Developer & Tools', icon: 'terminal' },
   { id: 'shortcuts', label: 'Shortcuts', icon: 'keyboard' },
-  { id: 'about', label: 'About Lumen', icon: 'sparkles' },
+  { id: 'about', label: 'About Blade', icon: 'sparkles' },
 ];
 
 const SHORTCUT_GROUPS = [
@@ -115,6 +115,9 @@ export function SettingsPage({ url }: { url?: string }) {
   const [status, setStatus] = useState('');
   const activeTab = useBrowserStore((state) => state.activeTab());
   const downloads = useBrowserStore((state) => state.downloads);
+  const toolbarConfig = useBrowserStore((state) => state.toolbarConfig);
+  const setToolbarButton = useBrowserStore((state) => state.setToolbarButton);
+  const resetToolbarConfig = useBrowserStore((state) => state.resetToolbarConfig);
   const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]);
   const [historyQuery, setHistoryQuery] = useState('');
   const [passwords, setPasswords] = useState<StoredPassword[]>([]);
@@ -247,7 +250,7 @@ export function SettingsPage({ url }: { url?: string }) {
             <Icon name="gear" size={15} strokeWidth={1.8} />
           </div>
           <div>
-            <div className="text-sm font-bold text-white tracking-tight">Lumen Settings</div>
+            <div className="text-sm font-bold text-white tracking-tight">Blade Settings</div>
             <div className="text-[11px] text-white/50 font-medium">Browser Configuration</div>
           </div>
         </div>
@@ -282,7 +285,7 @@ export function SettingsPage({ url }: { url?: string }) {
         </div>
 
         <div className="pt-4 mt-auto border-t border-white/10 text-[11px] text-white/40 flex items-center justify-between">
-          <span>Lumen Browser</span><span>v0.1.0</span>
+          <span>Blade Browser</span><span>v0.1.1</span>
         </div>
       </nav>
 
@@ -292,8 +295,8 @@ export function SettingsPage({ url }: { url?: string }) {
             <Card title="Startup & Home" description="Choose what opens when a new window starts.">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 mb-3">
                 {[
-                  { value: 'newtab' as const, label: 'New tab page', description: 'Start with a clean Lumen tab.' },
-                  { value: 'continue' as const, label: 'Continue where you left off', description: 'Restore your tabs when Lumen starts again.' },
+                  { value: 'newtab' as const, label: 'New tab page', description: 'Start with a clean Blade tab.' },
+                  { value: 'continue' as const, label: 'Continue where you left off', description: 'Restore your tabs when Blade starts again.' },
                 ].map((item) => {
                   const active = (settings?.startupBehavior ?? 'newtab') === item.value;
                   return <button key={item.value} onClick={() => set('startupBehavior', item.value)} className={`settings-control ${active ? 'settings-selected' : ''} p-3 rounded-xl border text-left transition-all hover:bg-white/10`}>
@@ -304,7 +307,7 @@ export function SettingsPage({ url }: { url?: string }) {
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
                 {HOMEPAGES.map((item) => {
-                  const active = (settings?.homepage ?? 'lumen://newtab') === item.value;
+                  const active = (settings?.homepage ?? 'blade://newtab') === item.value;
                   return <button key={item.value} onClick={() => set('homepage', item.value)} className={`settings-control ${active ? 'settings-selected' : ''} p-3 rounded-xl border text-left transition-all hover:bg-white/10`}>
                     <div className="text-xs font-semibold text-white">{item.label}</div>
                     <div className="text-[11px] text-white/50 mt-0.5">{item.description}</div>
@@ -313,7 +316,7 @@ export function SettingsPage({ url }: { url?: string }) {
               </div>
               <div className="flex items-center justify-between pt-3 mt-2 border-t border-white/10">
                 <div><div className="text-xs font-medium text-white">Custom Homepage URL</div><div className="text-[11px] text-white/50">Used for new windows.</div></div>
-                <input type="text" value={settings?.homepage ?? 'lumen://newtab'} onChange={(event) => set('homepage', event.target.value)} className="settings-control px-3 py-1.5 rounded-xl border text-xs outline-none w-64 text-right" />
+                <input type="text" value={settings?.homepage ?? 'blade://newtab'} onChange={(event) => set('homepage', event.target.value)} className="settings-control px-3 py-1.5 rounded-xl border text-xs outline-none w-64 text-right" />
               </div>
             </Card>
           </SettingsSection>
@@ -352,6 +355,64 @@ export function SettingsPage({ url }: { url?: string }) {
               <RangeRow label="Glass blur" value={`${settings?.glassBlur ?? 16}px`} min={0} max={40} current={settings?.glassBlur ?? 16} onChange={(value) => set('glassBlur', value)} />
               <div className="flex justify-end pt-3 mt-2 border-t border-white/10"><button onClick={resetTheme} className="settings-action-button px-4 py-2 text-xs font-medium rounded-xl">Reset shared theme</button></div>
             </Card>
+
+            <Card title="Customize Toolbar" description="Choose which buttons and quick actions appear in the navigation bar.">
+              <div className="space-y-1 pt-1">
+                <ToggleRow
+                  label="Back & Forward buttons"
+                  hint="Show navigation chevrons on the left"
+                  checked={toolbarConfig.backForward}
+                  onChange={(v) => setToolbarButton('backForward', v)}
+                />
+                <ToggleRow
+                  label="Reload button"
+                  hint="Show reload / stop button in address bar"
+                  checked={toolbarConfig.reload}
+                  onChange={(v) => setToolbarButton('reload', v)}
+                />
+                <ToggleRow
+                  label="Shields protection badge"
+                  hint="Show privacy shield with blocked tracker count"
+                  checked={toolbarConfig.shields}
+                  onChange={(v) => setToolbarButton('shields', v)}
+                />
+                <ToggleRow
+                  label="History shortcut"
+                  hint="Quick access to recently visited pages (Ctrl+H)"
+                  checked={toolbarConfig.history}
+                  onChange={(v) => setToolbarButton('history', v)}
+                />
+                <ToggleRow
+                  label="Bookmark shortcut"
+                  hint="Star button to bookmark the active page"
+                  checked={toolbarConfig.bookmark}
+                  onChange={(v) => setToolbarButton('bookmark', v)}
+                />
+                <ToggleRow
+                  label="Downloads shortcut"
+                  hint="Quick tray for download progress and history (Ctrl+J)"
+                  checked={toolbarConfig.downloads}
+                  onChange={(v) => setToolbarButton('downloads', v)}
+                />
+                <ToggleRow
+                  label="Settings shortcut"
+                  hint="Quick gear icon to open preferences"
+                  checked={toolbarConfig.settings}
+                  onChange={(v) => setToolbarButton('settings', v)}
+                />
+              </div>
+              <div className="flex justify-end pt-3 mt-2 border-t border-white/10">
+                <button
+                  onClick={() => {
+                    resetToolbarConfig();
+                    showStatus('Toolbar reset to defaults');
+                  }}
+                  className="settings-action-button px-4 py-2 text-xs font-medium rounded-xl"
+                >
+                  Reset toolbar to defaults
+                </button>
+              </div>
+            </Card>
           </SettingsSection>
         )}
 
@@ -372,10 +433,76 @@ export function SettingsPage({ url }: { url?: string }) {
         )}
 
         {section === 'tabs' && (
-          <SettingsSection title="Tabs & Windows" description="Manage browser chrome visibility and memory use.">
+          <SettingsSection title="Tabs & Windows" description="Manage tab layout, vertical tabs, and memory behavior.">
+            <Card title="Tab layout & orientation" description="Choose how tabs are arranged in the browser interface.">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => useBrowserStore.getState().setVerticalTabs(false)}
+                  className={`p-3.5 rounded-2xl border text-left flex items-start gap-3 transition-all ${
+                    !(useBrowserStore.getState().sidebarOpen && useBrowserStore.getState().sidebarPanel === 'tabs')
+                      ? 'bg-white/[0.12] border-[var(--theme-primary)] shadow-sm'
+                      : 'bg-white/[0.04] border-white/10 hover:bg-white/[0.08]'
+                  }`}
+                >
+                  <div className="w-8 h-8 rounded-xl bg-white/[0.08] flex items-center justify-center shrink-0 text-[var(--theme-primary)]">
+                    <Icon name="window" size={16} strokeWidth={2} />
+                  </div>
+                  <div>
+                    <div className="text-xs font-semibold text-white flex items-center gap-1.5">
+                      <span>Horizontal Tabs</span>
+                      {!(useBrowserStore.getState().sidebarOpen && useBrowserStore.getState().sidebarPanel === 'tabs') && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--theme-primary-soft)] text-[var(--theme-primary)] font-medium">Active</span>
+                      )}
+                    </div>
+                    <div className="text-[11px] text-white/50 mt-0.5">Classic Chrome-style tab strip positioned along the top.</div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => useBrowserStore.getState().setVerticalTabs(true)}
+                  className={`p-3.5 rounded-2xl border text-left flex items-start gap-3 transition-all ${
+                    (useBrowserStore.getState().sidebarOpen && useBrowserStore.getState().sidebarPanel === 'tabs')
+                      ? 'bg-white/[0.12] border-[var(--theme-primary)] shadow-sm'
+                      : 'bg-white/[0.04] border-white/10 hover:bg-white/[0.08]'
+                  }`}
+                >
+                  <div className="w-8 h-8 rounded-xl bg-white/[0.08] flex items-center justify-center shrink-0 text-[var(--theme-primary)]">
+                    <Icon name="sidebar" size={16} strokeWidth={2} />
+                  </div>
+                  <div>
+                    <div className="text-xs font-semibold text-white flex items-center gap-1.5">
+                      <span>Vertical Tabs</span>
+                      {(useBrowserStore.getState().sidebarOpen && useBrowserStore.getState().sidebarPanel === 'tabs') && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--theme-primary-soft)] text-[var(--theme-primary)] font-medium">Active</span>
+                      )}
+                    </div>
+                    <div className="text-[11px] text-white/50 mt-0.5">Zen / Edge-style vertical tab drawer on the left side.</div>
+                  </div>
+                </button>
+              </div>
+            </Card>
+
             <Card title="Tab strips & bookmarks">
               <ToggleRow label="Show bookmarks bar" hint="Display quick access links beneath the address bar." checked={settings?.bookmarksBarVisible ?? true} onChange={(value) => set('bookmarksBarVisible', value)} />
-              <div className="flex items-center justify-between pt-4 mt-3 border-t border-white/10"><div><div className="text-xs font-medium text-white">Auto-hibernate inactive tabs</div><div className="text-[11px] text-white/50">Free memory by unloading background tabs.</div></div><ThemedSelect value={String(settings?.hibernateMinutes ?? 15)} onChange={(value) => set('hibernateMinutes', Number(value))} options={[{ value: '0', label: 'Never' }, { value: '5', label: 'After 5 minutes' }, { value: '15', label: 'After 15 minutes' }, { value: '30', label: 'After 30 minutes' }, { value: '60', label: 'After 1 hour' }]} /></div>
+              <div className="flex items-center justify-between pt-4 mt-3 border-t border-white/10">
+                <div>
+                  <div className="text-xs font-medium text-white">Auto-hibernate inactive tabs (Memory Saver)</div>
+                  <div className="text-[11px] text-white/50">Free memory by unloading background tabs after inactivity.</div>
+                </div>
+                <ThemedSelect
+                  value={String(settings?.hibernateMinutes ?? 15)}
+                  onChange={(value) => set('hibernateMinutes', Number(value))}
+                  options={[
+                    { value: '0', label: 'Never' },
+                    { value: '5', label: 'After 5 minutes' },
+                    { value: '15', label: 'After 15 minutes' },
+                    { value: '30', label: 'After 30 minutes' },
+                    { value: '60', label: 'After 1 hour' },
+                  ]}
+                />
+              </div>
             </Card>
           </SettingsSection>
         )}
@@ -398,8 +525,8 @@ export function SettingsPage({ url }: { url?: string }) {
         )}
 
         {section === 'shields' && (
-          <SettingsSection title="Lumen Shields" description="Ad blocking, tracker protection, and secure transport.">
-            <Card title="Protection master switch"><ToggleRow label="Enable Lumen Shields" hint="Apply protection to all web tabs." checked={shieldsConfig?.enabled ?? true} onChange={(value) => setShield('enabled', String(value))} /></Card>
+          <SettingsSection title="Blade Shields" description="Ad blocking, tracker protection, and secure transport.">
+            <Card title="Protection master switch"><ToggleRow label="Enable Blade Shields" hint="Apply protection to all web tabs." checked={shieldsConfig?.enabled ?? true} onChange={(value) => setShield('enabled', String(value))} /></Card>
             <Card title="Protection modules">
               <ToggleRow label="Ad & cosmetic filtering" hint="Remove intrusive display ads and banners." checked={shieldsConfig?.adBlockEnabled ?? true} onChange={(value) => setShield('adBlock', String(value))} />
               <ToggleRow label="Tracker protection" hint="Block common analytics and tracking beacons." checked={shieldsConfig?.trackerBlockEnabled ?? true} onChange={(value) => setShield('trackerBlock', String(value))} />
@@ -410,11 +537,11 @@ export function SettingsPage({ url }: { url?: string }) {
         )}
 
         {section === 'privacy' && (
-          <SettingsSection title="Privacy & Data" description="Control what Lumen sends, stores, and removes on your behalf.">
+          <SettingsSection title="Privacy & Data" description="Control what Blade sends, stores, and removes on your behalf.">
             <Card title="Privacy preferences">
               <ToggleRow label="Send a Do Not Track request" hint="Ask websites not to use your activity for tracking." checked={settings?.sendDoNotTrack ?? false} onChange={(value) => set('sendDoNotTrack', value)} />
-              <div className="border-t border-white/10 pt-3 mt-2"><ToggleRow label="Clear site data when Lumen closes" hint="Remove cookies, local storage, and service-worker data on exit." checked={settings?.clearSiteDataOnExit ?? false} onChange={(value) => set('clearSiteDataOnExit', value)} /></div>
-              <div className="border-t border-white/10 pt-3 mt-2"><ToggleRow label="Clear history when Lumen closes" hint="Delete locally stored visit records when the browser exits." checked={settings?.clearHistoryOnExit ?? false} onChange={(value) => set('clearHistoryOnExit', value)} /></div>
+              <div className="border-t border-white/10 pt-3 mt-2"><ToggleRow label="Clear site data when Blade closes" hint="Remove cookies, local storage, and service-worker data on exit." checked={settings?.clearSiteDataOnExit ?? false} onChange={(value) => set('clearSiteDataOnExit', value)} /></div>
+              <div className="border-t border-white/10 pt-3 mt-2"><ToggleRow label="Clear history when Blade closes" hint="Delete locally stored visit records when the browser exits." checked={settings?.clearHistoryOnExit ?? false} onChange={(value) => set('clearHistoryOnExit', value)} /></div>
             </Card>
             <Card title="Browsing history" description="Delete visit records and search queries stored on this device.">
               <div className="flex items-center justify-between gap-4"><div><div className="text-xs font-medium text-white">Clear browsing history now</div><div className="text-[11px] text-white/50">This cannot be undone.</div></div><button onClick={() => void clearHistory()} className="settings-danger-button px-4 py-2 text-xs font-medium rounded-xl">Clear history</button></div>
@@ -485,7 +612,7 @@ export function SettingsPage({ url }: { url?: string }) {
 
         {section === 'shortcuts' && <SettingsSection title="Keyboard Shortcuts" description="Shortcuts available in both the browser chrome and web pages.">{SHORTCUT_GROUPS.map((group) => <Card key={group.category} title={group.category}><div className="divide-y divide-white/[0.06]">{group.items.map(([keys, action]) => <div key={keys} className="py-2.5 flex items-center justify-between text-xs"><span className="text-white/80">{action}</span><kbd className="px-2.5 py-1 rounded-lg bg-white/10 border border-white/15 text-white/90 font-mono text-[11px]">{keys}</kbd></div>)}</div></Card>)}</SettingsSection>}
 
-        {section === 'about' && <SettingsSection title="About Lumen" description="A multi-process Chromium browser with a local-first data store."><Card title="Lumen Browser"><div className="space-y-3 text-xs text-white/80 leading-relaxed"><p>Lumen uses Electron WebContentsView tabs, React chrome, and SQLite persistence.</p><div className="grid grid-cols-2 sm:grid-cols-4 gap-3">{[['Engine', 'Chromium'], ['Database', 'SQLite (WAL)'], ['UI layer', 'React + Tailwind'], ['Architecture', 'Multi-process']].map(([label, value]) => <div key={label} className="p-3 rounded-xl bg-white/[0.04] border border-white/10"><div className="text-[10px] text-white/40 uppercase font-semibold">{label}</div><div className="text-xs font-bold text-white mt-0.5">{value}</div></div>)}</div></div></Card></SettingsSection>}
+        {section === 'about' && <SettingsSection title="About Blade" description="A multi-process Chromium browser with a local-first data store."><Card title="Blade Browser"><div className="space-y-3 text-xs text-white/80 leading-relaxed"><p>Blade uses Electron WebContentsView tabs, React chrome, and SQLite persistence.</p><div className="grid grid-cols-2 sm:grid-cols-4 gap-3">{[['Engine', 'Chromium'], ['Database', 'SQLite (WAL)'], ['UI layer', 'React + Tailwind'], ['Architecture', 'Multi-process']].map(([label, value]) => <div key={label} className="p-3 rounded-xl bg-white/[0.04] border border-white/10"><div className="text-[10px] text-white/40 uppercase font-semibold">{label}</div><div className="text-xs font-bold text-white mt-0.5">{value}</div></div>)}</div></div></Card></SettingsSection>}
       </main>
       {status && <div className="absolute bottom-4 right-4 glass-panel px-4 py-2 text-xs text-white shadow-xl">{status}</div>}
     </div>

@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { useBrowserStore } from '../../store/browserStore';
 import { api } from '../../lib/api';
 import { Icon } from '../common/Icon';
-import { AppMenu } from '../chrome/AppMenu';
 import { TrafficLights, TrafficLightsSpacer } from '../chrome/TrafficLights';
+import { BookmarksPopup } from '../chrome/BookmarksPopup';
+import { DownloadPopup } from '../chrome/DownloadPopup';
+import { AppMenuPopup } from '../chrome/AppMenuPopup';
 import type { Suggestion } from '@shared/types';
 
 interface AddressBarProps {
@@ -18,31 +20,48 @@ export function AddressBar({ showTrafficLights = false }: AddressBarProps) {
     stop,
     activeTab,
     navigateActive,
-    setSidebar,
-    sidebarOpen,
-    toggleBookmarkActive,
     activeBookmarked,
-    appMenuOpen,
+    toolbarConfig,
   } = useBrowserStore();
   const incognito = useBrowserStore((s) => s.incognito);
-  const downloadPopupOpen = useBrowserStore((s) => s.downloadPopupOpen);
-  const toggleDownloadPopup = useBrowserStore((s) => s.toggleDownloadPopup);
 
   const tab = activeTab();
   const [value, setValue] = useState('');
+  const [originalQuery, setOriginalQuery] = useState('');
   const [focused, setFocused] = useState(false);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [highlight, setHighlight] = useState(-1);
+  const [shieldsStats, setShieldsStats] = useState<{ adsBlocked: number; trackersBlocked: number; fingerprintsBlocked: number } | null>(null);
+  const [shieldsEnabled, setShieldsEnabled] = useState(true);
+
   const inputRef = useRef<HTMLInputElement>(null);
   const omniboxRef = useRef<HTMLDivElement>(null);
-  const appMenuBtnRef = useRef<HTMLButtonElement>(null);
+  const bookmarkBtnRef = useRef<HTMLButtonElement>(null);
+  const downloadBtnRef = useRef<HTMLButtonElement>(null);
+  const menuBtnRef = useRef<HTMLButtonElement>(null);
 
   const activeUrl = tab?.url || '';
 
   useEffect(() => {
+    const fetchShields = () => {
+      void api.shields.getConfig().then((c: any) => {
+        if (c) setShieldsEnabled(c.enabled);
+      });
+      void api.shields.getStatsForTab().then((s: any) => {
+        if (s) setShieldsStats(s);
+      });
+    };
+    fetchShields();
+    const interval = setInterval(fetchShields, 2000);
+    return () => clearInterval(interval);
+  }, [tab?.url]);
+
+  const totalShieldBlocked = (shieldsStats?.adsBlocked ?? 0) + (shieldsStats?.trackersBlocked ?? 0) + (shieldsStats?.fingerprintsBlocked ?? 0);
+
+  useEffect(() => {
     if (!focused) {
       const url = tab?.url ?? '';
-      if (!url || url === 'lumen://newtab' || url === 'about:newtab') {
+      if (!url || url === 'blade://newtab' || url === 'lumen://newtab' || url === 'about:newtab') {
         setValue('');
       } else {
         setValue(displayUrl(url));
@@ -52,7 +71,7 @@ export function AddressBar({ showTrafficLights = false }: AddressBarProps) {
 
   useEffect(() => {
     const q = value.trim();
-    if (!focused || !q || q === displayUrl(tab?.url ?? '')) {
+    if (!focused || q === displayUrl(tab?.url ?? '')) {
       setSuggestions([]);
       return;
     }
@@ -60,7 +79,7 @@ export function AddressBar({ showTrafficLights = false }: AddressBarProps) {
     const t = setTimeout(async () => {
       try {
         const s = (await api.app.getSuggestions(q)) as Suggestion[];
-        if (!cancelled) setSuggestions(s.slice(0, 8));
+        if (!cancelled) setSuggestions(s.slice(0, 10));
       } catch {
         // ignore
       }
@@ -83,11 +102,22 @@ export function AddressBar({ showTrafficLights = false }: AddressBarProps) {
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setHighlight((h) => Math.min(h + 1, suggestions.length - 1));
+      setHighlight((h) => {
+        const next = Math.min(h + 1, suggestions.length - 1);
+        if (next >= 0 && suggestions[next]) {
+          setValue(suggestions[next].url);
+        }
+        return next;
+      });
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      setHighlight((h) => Math.max(h - 1, -1));
-    } else if (e.key === 'Enter') {
+      setHighlight((h) => {
+        const next = Math.max(h - 1, -1);
+        if (next >= 0 && suggestions[next]) setValue(suggestions[next].url);
+        else setValue(originalQuery);
+        return next;
+      });
+    } else if (e.key === 'Enter' || e.key === 'Tab') {
       e.preventDefault();
       if (highlight >= 0 && suggestions[highlight]) {
         submit(suggestions[highlight].url);
@@ -98,7 +128,8 @@ export function AddressBar({ showTrafficLights = false }: AddressBarProps) {
       setFocused(false);
       setSuggestions([]);
       setValue(displayUrl(tab?.url ?? ''));
-      void api.app.hideSuggestions();
+      setOriginalQuery('');
+      setHighlight(-1);
     }
   };
 
@@ -106,7 +137,7 @@ export function AddressBar({ showTrafficLights = false }: AddressBarProps) {
   const formatUrlDisplay = (urlStr: string) => {
     if (!urlStr) return { domain: '', path: '' };
     try {
-      const clean = urlStr.replace(/^https?:\/\//, '').replace(/^lumen:\/\//, '');
+      const clean = urlStr.replace(/^https?:\/\//, '').replace(/^blade:\/\//, '').replace(/^lumen:\/\//, '');
       const slashIndex = clean.indexOf('/');
       if (slashIndex === -1) {
         return { domain: clean, path: '' };
@@ -123,18 +154,7 @@ export function AddressBar({ showTrafficLights = false }: AddressBarProps) {
   const urlDisplay = formatUrlDisplay(value);
   const hasSuggestions = focused && suggestions.length > 0;
 
-  useEffect(() => {
-    if (!hasSuggestions || !omniboxRef.current) {
-      void api.app.hideSuggestions();
-      return;
-    }
-    const rect = omniboxRef.current.getBoundingClientRect();
-    void api.app.showSuggestions({ x: rect.left, y: rect.bottom + 4, width: rect.width }, value.trim());
-  }, [hasSuggestions]);
 
-  useEffect(() => {
-    if (hasSuggestions) void api.app.updateSuggestions(value.trim());
-  }, [hasSuggestions, value]);
 
   return (
     <div className="relative px-6 py-2.5 flex items-center justify-between gap-4 drag-region select-none">
@@ -142,40 +162,29 @@ export function AddressBar({ showTrafficLights = false }: AddressBarProps) {
       {showTrafficLights && <TrafficLightsSpacer />}
 
       {/* ── Left Navigation Pill Cluster ── */}
-      <div className="flex items-center gap-0.5 backdrop-blur-xl border border-white/[0.08] rounded-full p-1 shadow-lg shrink-0 no-drag transition-all" style={{ background: 'var(--glass-bar-bg)' }}>
-        {/* Sidebar Panel Toggle */}
-        <button
-          title="Sidebar Panels"
-          onClick={() => setSidebar(!sidebarOpen)}
-          className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
-            sidebarOpen
-              ? 'bg-white/20 text-white shadow-sm'
-              : 'text-white/70 hover:text-white hover:bg-white/10'
-          }`}
-        >
-          <Icon name="sidebar" size={15} strokeWidth={1.8} />
-        </button>
+      {toolbarConfig.backForward && (
+        <div className="flex items-center gap-0.5 backdrop-blur-xl border border-white/[0.08] rounded-full p-1 shadow-lg shrink-0 no-drag transition-all" style={{ background: 'var(--glass-bar-bg)' }}>
+          {/* Back Button */}
+          <button
+            title="Back (Alt+Left)"
+            disabled={!tab?.canGoBack}
+            onClick={goBack}
+            className="w-8 h-8 rounded-full flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:pointer-events-none transition-all"
+          >
+            <Icon name="chevron-left" size={15} strokeWidth={2} />
+          </button>
 
-        {/* Back Button */}
-        <button
-          title="Back"
-          disabled={!tab?.canGoBack}
-          onClick={goBack}
-          className="w-8 h-8 rounded-full flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:pointer-events-none transition-all"
-        >
-          <Icon name="chevron-left" size={15} strokeWidth={2} />
-        </button>
-
-        {/* Forward Button */}
-        <button
-          title="Forward"
-          disabled={!tab?.canGoForward}
-          onClick={goForward}
-          className="w-8 h-8 rounded-full flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:pointer-events-none transition-all"
-        >
-          <Icon name="chevron-right" size={15} strokeWidth={2} />
-        </button>
-      </div>
+          {/* Forward Button */}
+          <button
+            title="Forward (Alt+Right)"
+            disabled={!tab?.canGoForward}
+            onClick={goForward}
+            className="w-8 h-8 rounded-full flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:pointer-events-none transition-all"
+          >
+            <Icon name="chevron-right" size={15} strokeWidth={2} />
+          </button>
+        </div>
+      )}
 
       {/* ── Center Omnibox Pill ── */}
       <div ref={omniboxRef} className="flex-1 max-w-2xl min-w-0 relative no-drag">
@@ -216,6 +225,7 @@ export function AddressBar({ showTrafficLights = false }: AddressBarProps) {
               value={value}
               onChange={(e) => {
                 setValue(e.target.value);
+                setOriginalQuery(e.target.value);
                 setHighlight(-1);
               }}
               onFocus={() => {
@@ -237,125 +247,176 @@ export function AddressBar({ showTrafficLights = false }: AddressBarProps) {
             />
           </div>
 
-          {/* Reload / Stop Button */}
-          <button
-            type="button"
-            title={tab?.isLoading ? 'Stop loading' : 'Reload'}
-            onClick={(e) => {
-              e.stopPropagation();
-              if (tab?.isLoading) {
-                stop();
-              } else {
-                reload();
-              }
-            }}
-            className="shrink-0 text-white/60 hover:text-white transition-colors p-1 rounded-full hover:bg-white/10"
-          >
-            <Icon
-              name={tab?.isLoading ? 'x' : 'arrow-clockwise'}
-              size={13}
-              strokeWidth={1.8}
-            />
-          </button>
-        </div>
+          {/* Shields Button inside Omnibox */}
+          {toolbarConfig.shields && tab?.url && !tab.url.startsWith('blade://') && !tab.url.startsWith('lumen://') && !tab.url.startsWith('about:') && (
+            <button
+              type="button"
+              title={`Blade Shields: ${shieldsEnabled ? (totalShieldBlocked > 0 ? `${totalShieldBlocked} items blocked` : 'Active') : 'Disabled'}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                const rect = e.currentTarget.getBoundingClientRect();
+                void api.app.showPopup({ type: 'shields', x: rect.right, y: rect.bottom });
+              }}
+              className={`shrink-0 flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold transition-all ${
+                shieldsEnabled
+                  ? 'bg-orange-500/15 text-orange-400 hover:bg-orange-500/25 border border-orange-500/30'
+                  : 'bg-white/10 text-white/40 hover:bg-white/15'
+              }`}
+            >
+              <Icon name="shield" size={13} strokeWidth={2.2} />
+              {totalShieldBlocked > 0 && <span>{totalShieldBlocked}</span>}
+            </button>
+          )}
 
-        {/* Suggestions Dropdown */}
-        {false && hasSuggestions && (
-          <div className="absolute left-0 right-0 top-full mt-2 z-50 max-h-[280px] overflow-y-auto backdrop-blur-2xl border border-white/15 rounded-2xl p-2 shadow-2xl animate-menu-in" style={{ background: 'var(--glass-bar-bg, rgba(30, 25, 20, 0.95))' }}>
-            {suggestions.map((s, i) => (
-              <button
-                key={i}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  submit(s.url);
-                }}
-                onMouseEnter={() => setHighlight(i)}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 text-left rounded-xl transition-colors duration-150 ${
-                  i === highlight
-                    ? 'bg-white/15 text-white'
-                    : 'text-white/70 hover:bg-white/10'
-                }`}
-              >
-                <span className="text-white/60 shrink-0">
-                  <Icon
-                    name={
-                      s.type === 'history'
-                        ? 'clock'
-                        : s.type === 'bookmark'
-                        ? 'bookmark'
-                        : 'search'
-                    }
-                    size={14}
-                    strokeWidth={1.8}
-                  />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="text-[13px] font-medium truncate text-white">
-                    {s.title}
-                  </div>
-                  {s.type !== 'search' && (
-                    <div className="text-[11px] truncate text-white/50">
-                      {s.url}
+          {/* Reload / Stop Button */}
+          {toolbarConfig.reload && (
+            <button
+              type="button"
+              title={tab?.isLoading ? 'Stop loading' : 'Reload'}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (tab?.isLoading) {
+                  stop();
+                } else {
+                  reload();
+                }
+              }}
+              className="shrink-0 text-white/60 hover:text-white transition-colors p-1 rounded-full hover:bg-white/10"
+            >
+              <Icon
+                name={tab?.isLoading ? 'x' : 'arrow-clockwise'}
+                size={13}
+                strokeWidth={1.8}
+              />
+            </button>
+          )}
+        
+          {/* Inline Suggestions Dropdown */}
+          {focused && suggestions.length > 0 && (
+            <div className="absolute top-[calc(100%+8px)] left-0 right-0 z-50 backdrop-blur-2xl bg-[var(--color-surface)]/95 border border-white/[0.08] rounded-2xl shadow-2xl overflow-y-auto max-h-[420px] py-2 flex flex-col gap-1">
+              {/* Top sites grid (if any top-sites exist) */}
+              {suggestions.some(s => s.type === 'top-site') && (
+                <div className="flex overflow-x-auto gap-2 px-3 pb-2 mb-1 border-b border-white/[0.08] custom-scrollbar">
+                  {suggestions.filter(s => s.type === 'top-site').map((s, i) => (
+                    <div key={'top'+i} onClick={() => submit(s.url)} className="flex flex-col items-center gap-1.5 p-2 hover:bg-white/[0.06] cursor-pointer rounded-xl min-w-[72px] flex-shrink-0 transition-colors">
+                      <div className="w-10 h-10 rounded-full bg-white/[0.05] flex items-center justify-center">
+                        <Icon name="arrow-up-right" size={18} className="text-white/40" />
+                      </div>
+                      <span className="text-[10px] text-white/70 truncate w-full text-center">{s.title ? s.title.substring(0, 15) : (s.url ? new URL(s.url).hostname : '')}</span>
                     </div>
-                  )}
+                  ))}
                 </div>
-                <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-white/10 text-white/60 font-semibold">
-                  {s.type}
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
+              )}
+              
+              {/* List suggestions (non top-site) */}
+              {suggestions.map((s, i) => {
+                if (s.type === 'top-site') return null;
+                const isHighlighted = i === highlight;
+                return (
+                  <div
+                    key={i}
+                    onMouseEnter={() => setHighlight(i)}
+                    onClick={() => submit(s.url)}
+                    className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer rounded-xl mx-1 transition-colors ${isHighlighted ? 'bg-white/[0.08]' : 'hover:bg-white/[0.06]'}`}
+                  >
+                    <div className="shrink-0 flex items-center justify-center w-6 h-6">
+                      <Icon name={getCategoryIcon(s.type)} size={14} className="text-white/40" />
+                    </div>
+                    <div className="flex-1 min-w-0 flex flex-col">
+                      <span className="text-white/90 text-[13px] truncate">{s.type === 'search' ? s.title : (s.title || s.url)}</span>
+                      {s.type !== 'search' && (
+                        <span className="text-white/40 text-[11px] truncate">{s.url}</span>
+                      )}
+                    </div>
+                    <div className="shrink-0">
+                      <span className="text-[10px] uppercase tracking-wider font-semibold text-white/30 px-2 py-0.5 rounded-full bg-white/[0.05]">
+                        {getCategoryLabel(s.type)}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+        </div>
       </div>
 
-      {/* ── Right Action Pill Cluster ── */}
+      {/* ── Right Action Pill Cluster (Customizable) ── */}
       <div className="flex items-center gap-0.5 backdrop-blur-xl border border-white/[0.08] rounded-full p-1 shadow-lg shrink-0 no-drag transition-all" style={{ background: 'var(--glass-bar-bg)' }}>
-        {/* Share / Bookmark Button */}
-        <button
-          title="Share / Bookmark"
-          onClick={() => void toggleBookmarkActive()}
-          className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
-            activeBookmarked
-              ? 'bg-white/20 text-[var(--color-text-primary)]'
-              : 'text-white/70 hover:text-white hover:bg-white/10'
-          }`}
-        >
-          <Icon name="bookmark" size={15} strokeWidth={1.8} />
-        </button>
+        {/* History Button */}
+        {toolbarConfig.history && (
+          <button
+            title="History (Ctrl+H)"
+            onClick={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              void api.app.showPopup({ type: 'history', x: rect.right, y: rect.bottom });
+            }}
+            className="w-8 h-8 rounded-full flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 transition-all"
+          >
+            <Icon name="clock" size={15} strokeWidth={1.8} />
+          </button>
+        )}
+
+        {/* Bookmark / Star Button */}
+        {toolbarConfig.bookmark && (
+          <button
+            ref={bookmarkBtnRef}
+            title={activeBookmarked ? 'Edit bookmark for this tab' : 'Bookmark this tab'}
+            onClick={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              void api.app.showPopup({ type: 'bookmarks', x: rect.right, y: rect.bottom });
+            }}
+            className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+              activeBookmarked
+                ? 'bg-[var(--theme-primary-soft)] text-[var(--theme-primary)]'
+                : 'text-white/70 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            <Icon name="star" size={15} strokeWidth={activeBookmarked ? 2.5 : 1.8} />
+          </button>
+        )}
 
         {/* Settings Button */}
-        <button
-          title="Settings (Ctrl+,)"
-          onClick={() => window.lumen.app.openSettings()}
-          className="w-8 h-8 rounded-full flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 transition-all"
-        >
-          <Icon name="gear" size={15} strokeWidth={2} />
-        </button>
+        {toolbarConfig.settings && (
+          <button
+            title="Settings (Ctrl+,)"
+            onClick={() => {
+              void api.app.closePopup();
+              api.app.openSettings();
+            }}
+            className="w-8 h-8 rounded-full flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 transition-all"
+          >
+            <Icon name="gear" size={15} strokeWidth={1.8} />
+          </button>
+        )}
 
-        {/* Downloads page */}
-        <button
-          title="Downloads (Ctrl+J)"
-          onClick={toggleDownloadPopup}
-          className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${downloadPopupOpen ? 'bg-white/20 text-white' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
-        >
-          <Icon name="download" size={15} strokeWidth={1.8} />
-        </button>
+        {/* Downloads Button */}
+        {toolbarConfig.downloads && (
+          <button
+            ref={downloadBtnRef}
+            title="Downloads (Ctrl+J)"
+            onClick={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              void api.app.showPopup({ type: 'downloads', x: rect.right, y: rect.bottom });
+            }}
+            className="w-8 h-8 rounded-full flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 transition-all"
+          >
+            <Icon name="download" size={15} strokeWidth={1.8} />
+          </button>
+        )}
 
-        {/* Tab Overview / Menu Button */}
+        {/* 3-Dots / 3-Lines Menu Button */}
         <button
-          ref={appMenuBtnRef}
-          title="Tabs & Menu (Alt+F)"
+          ref={menuBtnRef}
+          title="Customize and control Blade"
           onClick={(e) => {
             const rect = e.currentTarget.getBoundingClientRect();
-            window.lumen.app.showAppMenu({ x: rect.right, y: rect.bottom });
+            void api.app.showPopup({ type: 'menu', x: rect.right, y: rect.bottom });
           }}
-          className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
-            appMenuOpen
-              ? 'bg-white/20 text-white'
-              : 'text-white/70 hover:text-white hover:bg-white/10'
-          }`}
+          className="w-8 h-8 rounded-full flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 transition-all"
         >
-          <Icon name="tabs-overview" size={15} strokeWidth={1.8} />
+          <Icon name="dots-vertical" size={15} strokeWidth={2} />
         </button>
 
         {showTrafficLights && <TrafficLights />}
@@ -364,6 +425,30 @@ export function AddressBar({ showTrafficLights = false }: AddressBarProps) {
   );
 }
 
+
+function getCategoryIcon(type: string): any {
+  switch (type) {
+    case 'history': return 'clock';
+    case 'bookmark': return 'star';
+    case 'search': return 'search';
+    case 'url': return 'globe';
+    case 'top-site': return 'arrow-up-right';
+    default: return 'search';
+  }
+}
+
+function getCategoryLabel(type: string): string {
+  switch (type) {
+    case 'history': return 'History';
+    case 'bookmark': return 'Bookmark';
+    case 'search': return 'Search';
+    case 'url': return 'Link';
+    case 'top-site': return 'Top Site';
+    default: return 'Suggestion';
+  }
+}
+
 function displayUrl(url: string): string {
   return url;
 }
+

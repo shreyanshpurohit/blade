@@ -4,114 +4,124 @@ import { api } from './lib/api';
 import { TrafficLights, TrafficLightsSpacer } from './components/chrome/TrafficLights';
 import { BookmarksBar } from './components/chrome/BookmarksBar';
 import { TabBar } from './components/tabbar/TabBar';
+import { VerticalTabBar } from './components/tabbar/VerticalTabBar';
 import { AddressBar } from './components/addressbar/AddressBar';
-import { Sidebar } from './components/sidebar/Sidebar';
 import { SettingsPage } from './components/settings/SettingsPage';
 import { NewTab } from './components/newtab/NewTab';
-
-import { AppMenu } from './components/chrome/AppMenu';
+import { HistoryPage } from './components/history/HistoryPage';
+import { DownloadsPage } from './components/downloads/DownloadsPage';
+import { BookmarksPopup } from './components/chrome/BookmarksPopup';
+import { DownloadPopup } from './components/chrome/DownloadPopup';
+import { AppMenuPopup } from './components/chrome/AppMenuPopup';
+import { ShieldsPopup } from './components/chrome/ShieldsPopup';
+import { HistoryPopup } from './components/chrome/HistoryPopup';
+import { FindBar } from './components/chrome/FindBar';
 import { applyAppearanceMode } from './lib/theme';
 import type { DownloadItem, Suggestion } from '@shared/types';
 import { Icon } from './components/common/Icon';
 
 export function App() {
-  if (window.location.hash.startsWith('#/app-menu')) {
-    return <StandaloneAppMenu />;
-  }
-  if (window.location.hash.startsWith('#/suggestions')) {
-    return <StandaloneSuggestions />;
-  }
-  if (window.location.hash.startsWith('#/download-popup')) {
-    return <StandaloneDownloadPopup />;
+  if (
+    window.location.hash.startsWith('#/popup') ||
+    window.location.hash.startsWith('#/app-menu') ||
+    window.location.hash.startsWith('#/download-popup')
+  ) {
+    return <StandalonePopupOverlay />;
   }
   return <ChromeShell />;
 }
 
-function StandaloneSuggestions() {
+function StandalonePopupOverlay() {
   const init = useBrowserStore((s) => s.init);
   const params = new URLSearchParams(window.location.hash.split('?')[1] || '');
-  const initialQuery = params.get('q') || '';
-  const [query, setQuery] = useState(initialQuery);
-  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const initialType = params.get('type') || '';
+  const initialX = parseInt(params.get('x') || '0', 10);
+  const initialY = parseInt(params.get('y') || '0', 10);
+
+  const [popupState, setPopupState] = useState<{
+    isOpen: boolean;
+    type: string;
+    x: number;
+    y: number;
+  }>({
+    isOpen: Boolean(initialType),
+    type: initialType,
+    x: initialX || window.innerWidth - 20,
+    y: initialY || 56,
+  });
 
   useEffect(() => {
     void init();
-    const unsubscribe = api.onSuggestionsChanged(setQuery);
-    return () => { unsubscribe(); };
-  }, [init]);
-
-  useEffect(() => {
-    let cancelled = false;
-    void api.app.getSuggestions(query).then((value) => {
-      if (!cancelled) setSuggestions((value as Suggestion[]).slice(0, 6));
+    const unsubOpen = api.onPopupOpen((data) => {
+      if (data && data.type) {
+        setPopupState({
+          isOpen: true,
+          type: data.type,
+          x: data.x,
+          y: data.y,
+        });
+      }
     });
-    return () => { cancelled = true; };
-  }, [query]);
-
-  return (
-    <div className="suggestions-overlay h-full w-full p-2 pointer-events-none">
-      <div className="suggestions-overlay-panel pointer-events-auto w-full rounded-2xl p-2 shadow-2xl animate-menu-in">
-        {suggestions.map((suggestion) => (
-          <button
-            key={`${suggestion.type}:${suggestion.url}`}
-            type="button"
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => {
-              useBrowserStore.getState().navigateActive(suggestion.url);
-              void api.app.hideSuggestions();
-            }}
-            className="suggestions-overlay-item w-full flex items-center gap-3 px-3.5 py-2.5 text-left rounded-xl transition-colors"
-          >
-            <Icon name={suggestion.type === 'history' ? 'clock' : suggestion.type === 'bookmark' ? 'bookmark' : 'search'} size={14} />
-            <span className="min-w-0 flex-1"><span className="block text-[13px] font-medium truncate">{suggestion.title}</span>{suggestion.type !== 'search' && <span className="block text-[11px] truncate text-[var(--color-text-secondary)]">{suggestion.url}</span>}</span>
-            <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full suggestions-overlay-badge">{suggestion.type}</span>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function StandaloneDownloadPopup() {
-  const init = useBrowserStore((s) => s.init);
-  const popupRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    void init();
-  }, [init]);
-  useEffect(() => {
-    if (!popupRef.current) return;
-    const reportSize = () => {
-      const height = popupRef.current?.getBoundingClientRect().height ?? 0;
-      if (height > 0) void api.app.resizeDownloadPopup(Math.ceil(height));
+    const unsubClose = api.onPopupClose(() => {
+      setPopupState({ isOpen: false, type: '', x: 0, y: 0 });
+    });
+    return () => {
+      unsubOpen();
+      unsubClose();
     };
-    const observer = new ResizeObserver(reportSize);
-    observer.observe(popupRef.current);
-    reportSize();
-    return () => observer.disconnect();
-  }, []);
-  return <div ref={popupRef} className="w-full pointer-events-none"><DownloadPopupPanel /></div>;
-}
-
-function StandaloneAppMenu() {
-  const init = useBrowserStore((s) => s.init);
-  useEffect(() => {
-    void init();
   }, [init]);
 
-  const params = new URLSearchParams(window.location.hash.split('?')[1] || '');
-  const x = parseInt(params.get('x') || '0', 10);
-  const y = parseInt(params.get('y') || '0', 10);
+  const close = () => {
+    setPopupState({ isOpen: false, type: '', x: 0, y: 0 });
+    void api.app.closePopup();
+  };
+
+  if (!popupState.isOpen || !popupState.type) return null;
 
   return (
-    <div className="w-screen h-screen overflow-hidden bg-transparent pointer-events-auto">
-      <AppMenu
-        isOpen={true}
-        onClose={() => {
-          void api.app.setAppMenuOpen(false);
-        }}
-        standalone={true}
-        customPos={{ x, y }}
-      />
+    <div
+      className="w-screen h-screen overflow-hidden bg-transparent select-none pointer-events-auto"
+      onClick={close}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        close();
+      }}
+    >
+      {popupState.type === 'shields' && (
+        <ShieldsPopup
+          isOpen={true}
+          onClose={close}
+          anchorPos={{ x: popupState.x, y: popupState.y }}
+        />
+      )}
+      {popupState.type === 'history' && (
+        <HistoryPopup
+          isOpen={true}
+          onClose={close}
+          anchorPos={{ x: popupState.x, y: popupState.y }}
+        />
+      )}
+      {popupState.type === 'bookmarks' && (
+        <BookmarksPopup
+          isOpen={true}
+          onClose={close}
+          anchorPos={{ x: popupState.x, y: popupState.y }}
+        />
+      )}
+      {popupState.type === 'downloads' && (
+        <DownloadPopup
+          isOpen={true}
+          onClose={close}
+          anchorPos={{ x: popupState.x, y: popupState.y }}
+        />
+      )}
+      {popupState.type === 'menu' && (
+        <AppMenuPopup
+          isOpen={true}
+          onClose={close}
+          anchorPos={{ x: popupState.x, y: popupState.y }}
+        />
+      )}
     </div>
   );
 }
@@ -125,22 +135,37 @@ function ChromeShell() {
   const activeTab = useBrowserStore((s) => s.activeTab());
   const sidebarOpen = useBrowserStore((s) => s.sidebarOpen);
   const sidebarPinned = useBrowserStore((s) => s.sidebarPinned);
+  const sidebarPanel = useBrowserStore((s) => s.sidebarPanel);
   const fullscreen = useBrowserStore((s) => s.fullscreen);
+  const findBarOpen = useBrowserStore((s) => s.findBarOpen);
 
   const isSettings = activeTab?.url
-    ? activeTab.url.startsWith('lumen://settings') ||
+    ? activeTab.url.startsWith('blade://settings') ||
+      activeTab.url.startsWith('lumen://settings') ||
       activeTab.url === 'about:settings' ||
       activeTab.url === 'chrome://settings'
     : false;
 
+  const isHistory = activeTab?.url
+    ? activeTab.url === 'blade://history' ||
+      activeTab.url === 'lumen://history'
+    : false;
+
+  const isDownloads = activeTab?.url
+    ? activeTab.url === 'blade://downloads' ||
+      activeTab.url === 'lumen://downloads'
+    : false;
+
   const isNewTab =
     !activeTab?.url ||
+    activeTab.url === 'blade://newtab' ||
     activeTab.url === 'lumen://newtab' ||
     activeTab.url === 'about:newtab' ||
     activeTab.url === 'about:blank' ||
     activeTab.url.includes('honeyquote.com');
 
-  const showTabStrip = true;
+  const isVerticalTabs = sidebarOpen && sidebarPanel === 'tabs';
+  const showTabStrip = !isVerticalTabs;
 
   useEffect(() => {
     void init();
@@ -172,7 +197,7 @@ function ChromeShell() {
     }
     
     return () => observer.disconnect();
-  }, [initialized, activeTab?.id, showTabStrip, bookmarksBarVisible, fullscreen]);
+  }, [initialized, activeTab?.id, showTabStrip, bookmarksBarVisible, fullscreen, findBarOpen]);
 
   useEffect(() => {
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
@@ -221,8 +246,7 @@ function ChromeShell() {
         input?.select();
       } else if (isCmdOrCtrl && e.key.toLowerCase() === 'f') {
         e.preventDefault();
-        const query = window.prompt('Find in page');
-        if (query) void api.tabs.find(query);
+        useBrowserStore.getState().setFindBarOpen(true);
       } else if (isCmdOrCtrl && e.key.toLowerCase() === 's') {
         e.preventDefault();
         useBrowserStore.getState().savePage();
@@ -279,6 +303,24 @@ function ChromeShell() {
       } else if (isCmdOrCtrl && e.key.toLowerCase() === 'u') {
         e.preventDefault();
         useBrowserStore.getState().viewSource();
+      } else if (e.altKey && e.key === 'ArrowLeft') {
+        e.preventDefault();
+        useBrowserStore.getState().goBack();
+      } else if (e.altKey && e.key === 'ArrowRight') {
+        e.preventDefault();
+        useBrowserStore.getState().goForward();
+      } else if (e.ctrlKey && e.key === 'Tab') {
+        e.preventDefault();
+        const s = useBrowserStore.getState();
+        const allTabs = s.tabs;
+        const idx = allTabs.findIndex((t) => t.id === s.activeTabId);
+        if (e.shiftKey) {
+          const prev = allTabs[(idx - 1 + allTabs.length) % allTabs.length];
+          if (prev) s.activateTab(prev.id);
+        } else {
+          const next = allTabs[(idx + 1) % allTabs.length];
+          if (next) s.activateTab(next.id);
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -289,9 +331,13 @@ function ChromeShell() {
   // to the same native menu used by real web pages.
   useEffect(() => {
     const handleContextMenu = (event: MouseEvent) => {
-      event.preventDefault();
+      if (event.defaultPrevented) return;
       const target = event.target as HTMLElement | null;
-      if (target?.closest('[data-sidebar-surface]')) return;
+      // Do not trigger native context menu on tabs, bookmarks, or header/aside surfaces
+      if (target?.closest('[data-sidebar-surface], header, aside, .glass-panel, button, input, textarea, [data-tab-id]')) {
+        return;
+      }
+      event.preventDefault();
       const editable = !!target?.closest('input, textarea, [contenteditable="true"]');
       void api.app.showContextMenu(event.clientX, event.clientY, editable);
     };
@@ -327,24 +373,45 @@ function ChromeShell() {
             <BookmarksBar />
           </div>
         )}
+
+        {/* Find in Page Bar */}
+        {findBarOpen && (
+          <div className="no-drag border-t border-white/[0.06] px-4 py-1.5 flex items-center justify-end bg-black/25">
+            <FindBar />
+          </div>
+        )}
       </header>}
 
       {/* ── Settings Page ── */}
       {isSettings && (
-        <div className={`page-shell flex-1 overflow-hidden relative z-10 ${sidebarOpen && sidebarPinned ? 'page-shell-shifted' : ''}`}>
+        <div className={`page-shell flex-1 overflow-hidden relative z-10 ${isVerticalTabs ? 'page-shell-shifted' : ''}`}>
           <SettingsPage url={activeTab?.url} />
         </div>
       )}
 
+      {/* ── History Page ── */}
+      {isHistory && (
+        <div className={`page-shell flex-1 overflow-hidden relative z-10 ${isVerticalTabs ? 'page-shell-shifted' : ''}`}>
+          <HistoryPage />
+        </div>
+      )}
+
+      {/* ── Downloads Page ── */}
+      {isDownloads && (
+        <div className={`page-shell flex-1 overflow-hidden relative z-10 ${isVerticalTabs ? 'page-shell-shifted' : ''}`}>
+          <DownloadsPage />
+        </div>
+      )}
+
       {/* ── New Tab / Dashboard Page ── */}
-      {isNewTab && !isSettings && (
-        <div className={`page-shell flex-1 overflow-hidden relative z-10 ${sidebarOpen && sidebarPinned ? 'page-shell-shifted' : ''}`}>
+      {isNewTab && !isSettings && !isHistory && !isDownloads && (
+        <div className={`page-shell flex-1 overflow-hidden relative z-10 ${isVerticalTabs ? 'page-shell-shifted' : ''}`}>
           <NewTab />
         </div>
       )}
 
-      {/* ── Sidebar ── */}
-      {!fullscreen && <Sidebar />}
+      {/* ── Vertical Tabs Bar (Zen / Edge style) ── */}
+      {!fullscreen && isVerticalTabs && <VerticalTabBar />}
 
       {/* Downloads Pill */}
       <DownloadsPill />

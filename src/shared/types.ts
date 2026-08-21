@@ -105,7 +105,7 @@ export interface DownloadItem {
 }
 
 export interface Suggestion {
-  type: 'history' | 'bookmark' | 'search' | 'shortcut';
+  type: 'history' | 'bookmark' | 'search' | 'shortcut' | 'url' | 'top-site';
   title: string;
   url: string;
 }
@@ -150,14 +150,19 @@ export const IPC = {
   TabZoomIn: 'tab:zoomIn',
   TabZoomOut: 'tab:zoomOut',
   TabZoomReset: 'tab:zoomReset',
+  TabStopFind: 'tab:stopFind',
   TabPrint: 'tab:print',
   TabSavePage: 'tab:savePage',
   TabToggleDevTools: 'tab:toggleDevTools',
   TabViewSource: 'tab:viewSource',
+  ShowTabContextMenu: 'tab:showContextMenu',
+  ShowTabBarContextMenu: 'tab:showTabBarContextMenu',
   GetState: 'app:getState',
   GetSuggestions: 'omnibox:suggestions',
   SetSidebar: 'app:setSidebar',
   SetSidebarPinned: 'app:setSidebarPinned',
+  SetSidebarWidth: 'app:setSidebarWidth',
+  OpenFindBar: 'app:openFindBar',
   WindowControl: 'window:control',
   WindowToggleFullscreen: 'window:toggleFullscreen',
   NewWindow: 'window:newWindow',
@@ -190,6 +195,10 @@ export const IPC = {
   DownloadCancel: 'downloads:cancel',
   DownloadOpen: 'downloads:open',
   CapturePage: 'tools:capturePage',
+  ShowPopup: 'app:showPopup',
+  ClosePopup: 'app:closePopup',
+  PopupOpen: 'app:popupOpen',
+  PopupClose: 'app:popupClose',
   ShowAppMenu: 'app:showAppMenu',
   ShowSuggestions: 'app:showSuggestions',
   UpdateSuggestions: 'app:updateSuggestions',
@@ -209,9 +218,19 @@ export const IPC = {
   ShieldsGetStatsForTab: 'shields:getStatsForTab',
   ShieldsResetStats: 'shields:resetStats',
 
+  // Tab group management
+  TabGroupCreate: 'tab:group:create',
+  TabGroupAddTab: 'tab:group:addTab',
+  TabGroupRemoveTab: 'tab:group:removeTab',
+  TabGroupRename: 'tab:group:rename',
+  TabGroupSetColor: 'tab:group:setColor',
+  TabGroupDelete: 'tab:group:delete',
+
   // main -> renderer (events)
   StateChanged: 'event:stateChanged',
   DownloadsChanged: 'event:downloadsChanged',
   SuggestionsChanged: 'event:suggestionsChanged',
   DownloadPopupClosed: 'event:downloadPopupClosed',
+  FindResult: 'event:findResult',
+  OpenFindBarEvent: 'event:openFindBar',
 } as const;

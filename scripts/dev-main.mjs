@@ -22,7 +22,7 @@ function launch() {
   electronProc?.kill();
   electronProc = spawn('npx', ['electron', '.'], {
     stdio: 'inherit',
-    env: { ...process.env, LUMEN_DEV_SERVER_URL: DEV_URL },
+    env: { ...process.env, BLADE_DEV_SERVER_URL: DEV_URL, LUMEN_DEV_SERVER_URL: DEV_URL },
   });
 }
 
