@@ -366,9 +366,15 @@ export function SettingsPage({ url }: { url?: string }) {
                 />
                 <ToggleRow
                   label="Reload button"
-                  hint="Show reload / stop button in address bar"
+                  hint="Show reload / stop button in the navigation cluster"
                   checked={toolbarConfig.reload}
                   onChange={(v) => setToolbarButton('reload', v)}
+                />
+                <ToggleRow
+                  label="Home button"
+                  hint="Show button to return to the Blade new tab page"
+                  checked={toolbarConfig.home}
+                  onChange={(v) => setToolbarButton('home', v)}
                 />
                 <ToggleRow
                   label="Shields protection badge"

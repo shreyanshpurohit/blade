@@ -163,27 +163,68 @@ export function AddressBar({ showTrafficLights = false }: AddressBarProps) {
       {showTrafficLights && <TrafficLightsSpacer />}
 
       {/* ── Left Navigation Pill Cluster ── */}
-      {toolbarConfig.backForward && (
+      {(toolbarConfig.backForward || toolbarConfig.reload || toolbarConfig.home) && (
         <div className="flex items-center gap-0.5 backdrop-blur-xl border border-white/[0.08] rounded-full p-1 shadow-lg shrink-0 no-drag transition-all" style={{ background: 'var(--glass-bar-bg)' }}>
           {/* Back Button */}
-          <button
-            title="Back (Alt+Left)"
-            disabled={!tab?.canGoBack}
-            onClick={goBack}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:pointer-events-none transition-all"
-          >
-            <Icon name="chevron-left" size={15} strokeWidth={2} />
-          </button>
+          {toolbarConfig.backForward && (
+            <button
+              type="button"
+              title="Back (Alt+Left)"
+              disabled={!tab?.canGoBack}
+              onClick={goBack}
+              className="w-8 h-8 rounded-full flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:pointer-events-none transition-all"
+            >
+              <Icon name="chevron-left" size={15} strokeWidth={2} />
+            </button>
+          )}
 
           {/* Forward Button */}
-          <button
-            title="Forward (Alt+Right)"
-            disabled={!tab?.canGoForward}
-            onClick={goForward}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:pointer-events-none transition-all"
-          >
-            <Icon name="chevron-right" size={15} strokeWidth={2} />
-          </button>
+          {toolbarConfig.backForward && (
+            <button
+              type="button"
+              title="Forward (Alt+Right)"
+              disabled={!tab?.canGoForward}
+              onClick={goForward}
+              className="w-8 h-8 rounded-full flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:pointer-events-none transition-all"
+            >
+              <Icon name="chevron-right" size={15} strokeWidth={2} />
+            </button>
+          )}
+
+          {/* Reload / Stop Button */}
+          {toolbarConfig.reload && (
+            <button
+              type="button"
+              title={tab?.isLoading ? 'Stop loading (Esc)' : 'Reload (Ctrl+R)'}
+              onClick={() => {
+                if (tab?.isLoading) {
+                  stop();
+                } else {
+                  reload();
+                }
+              }}
+              className="w-8 h-8 rounded-full flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 transition-all"
+            >
+              <Icon
+                name={tab?.isLoading ? 'x' : 'arrow-clockwise'}
+                size={14}
+                strokeWidth={2}
+                className={tab?.isLoading ? 'animate-spin' : ''}
+              />
+            </button>
+          )}
+
+          {/* Home Button */}
+          {toolbarConfig.home && (
+            <button
+              type="button"
+              title="Home (Blade New Tab)"
+              onClick={() => navigateActive('blade://newtab')}
+              className="w-8 h-8 rounded-full flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 transition-all"
+            >
+              <Icon name="home" size={14} strokeWidth={2} />
+            </button>
+          )}
         </div>
       )}
 
@@ -272,29 +313,6 @@ export function AddressBar({ showTrafficLights = false }: AddressBarProps) {
             </button>
           )}
 
-          {/* Reload / Stop Button */}
-          {toolbarConfig.reload && (
-            <button
-              type="button"
-              title={tab?.isLoading ? 'Stop loading' : 'Reload'}
-              onClick={(e) => {
-                e.stopPropagation();
-                if (tab?.isLoading) {
-                  stop();
-                } else {
-                  reload();
-                }
-              }}
-              className="shrink-0 text-white/60 hover:text-white transition-colors p-1 rounded-full hover:bg-white/10"
-            >
-              <Icon
-                name={tab?.isLoading ? 'x' : 'arrow-clockwise'}
-                size={13}
-                strokeWidth={1.8}
-              />
-            </button>
-          )}
-        
           {/* Inline Suggestions Dropdown */}
           {focused && suggestions.length > 0 && (
             <div className="absolute top-[calc(100%+8px)] left-0 right-0 z-50 backdrop-blur-2xl bg-[var(--color-surface)]/95 border border-white/[0.08] rounded-2xl shadow-2xl overflow-y-auto max-h-[420px] py-2 flex flex-col gap-1">

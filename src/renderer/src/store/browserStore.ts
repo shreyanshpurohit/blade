@@ -24,6 +24,7 @@ export interface AppSettings {
 export interface ToolbarConfig {
   backForward: boolean;
   reload: boolean;
+  home: boolean;
   bookmark: boolean;
   shields: boolean;
   history: boolean;
@@ -34,6 +35,7 @@ export interface ToolbarConfig {
 const DEFAULT_TOOLBAR_CONFIG: ToolbarConfig = {
   backForward: true,
   reload: true,
+  home: true,
   bookmark: true,
   shields: true,
   history: true,
