@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { api } from '../../lib/api';
 import { useBrowserStore } from '../../store/browserStore';
 import { Icon } from '../common/Icon';
+import { BladeLogo } from '../common/BladeLogo';
 import type { HistoryEntry } from '@shared/types';
 
 /** Derive the top N most-visited domains from history. */
@@ -113,8 +114,11 @@ export function NewTab() {
         background: 'var(--newtab-bg)',
       }}
     >
-      {/* ── Clock & Greeting ── */}
+      {/* ── Brand Logo, Clock & Greeting ── */}
       <div className="flex flex-col items-center mb-10 animate-fade-in">
+        <div className="mb-4">
+          <BladeLogo className="w-16 h-16 drop-shadow-[0_0_24px_rgba(255,255,255,0.15)] hover:scale-105 transition-transform duration-300" />
+        </div>
         <time className="text-[64px] font-semibold tracking-tight text-white/90 leading-none tabular-nums">
           {formatTime(time)}
         </time>

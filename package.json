@@ -1,7 +1,7 @@
 {
   "name": "blade-browser",
-  "version": "0.1.1",
-  "description": "A glassmorphic desktop web browser — Blade",
+  "version": "0.2.0",
+  "description": "A glassmorphic desktop web browser: Blade",
   "main": "out/main/index.cjs",
   "type": "module",
   "license": "MIT",

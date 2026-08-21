@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { api } from '../../lib/api';
 import { Icon } from '../common/Icon';
+import { BladeLogo } from '../common/BladeLogo';
 import type { HistoryEntry } from '@shared/types';
 import { useBrowserStore } from '../../store/browserStore';
 
@@ -73,7 +74,12 @@ export function HistoryPage() {
   return (
     <div className="h-full flex flex-col bg-transparent overflow-hidden text-[var(--color-text-primary)]">
       <div className="flex-none px-8 py-6 max-w-4xl w-full mx-auto flex items-center justify-between mt-12">
-        <h1 className="text-3xl font-semibold">History</h1>
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-white/[0.06] border border-white/10 flex items-center justify-center shrink-0">
+            <BladeLogo className="w-6 h-6" />
+          </div>
+          <h1 className="text-3xl font-semibold">History</h1>
+        </div>
         <div className="flex items-center gap-4">
           <div className="relative group">
             <div className="absolute inset-y-0 left-0 flex items-center pl-3 text-[var(--color-text-secondary)]">

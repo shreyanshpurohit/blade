@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { Icon, type IconName } from '../common/Icon';
+import { BladeLogo } from '../common/BladeLogo';
 import type { DownloadItem } from '@shared/types';
 import { useBrowserStore } from '../../store/browserStore';
 
@@ -65,6 +66,9 @@ export function DownloadsPage() {
     <div className="h-full flex flex-col bg-transparent overflow-hidden text-[var(--color-text-primary)]">
       <div className="flex-none px-8 py-6 max-w-4xl w-full mx-auto flex items-center justify-between mt-12">
         <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-white/[0.06] border border-white/10 flex items-center justify-center shrink-0">
+            <BladeLogo className="w-6 h-6" />
+          </div>
           <h1 className="text-3xl font-semibold">Downloads</h1>
           <span className="px-2 py-1 rounded-full bg-white/[0.06] text-xs font-medium text-[var(--color-text-secondary)]">
             {allDownloads.length} items

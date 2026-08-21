@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { api } from '../../lib/api';
 import { AppSettings, useBrowserStore } from '../../store/browserStore';
 import { Icon, IconName } from '../common/Icon';
+import { BladeLogo } from '../common/BladeLogo';
 import { COLOR_THEMES, DEFAULT_CUSTOMIZATION, type ColorTheme } from '../../lib/theme';
 import type { HistoryEntry, StoredPassword } from '@shared/types';
 
@@ -246,8 +247,8 @@ export function SettingsPage({ url }: { url?: string }) {
     <div className="settings-page h-full flex antialiased select-none overflow-hidden">
       <nav className="settings-nav w-[260px] shrink-0 flex flex-col p-5 border-r border-white/10 overflow-y-auto relative">
         <div className="flex items-center gap-3 px-1 mb-6">
-          <div className="nav-pill w-8 h-8 text-white">
-            <Icon name="gear" size={15} strokeWidth={1.8} />
+          <div className="w-8 h-8 flex items-center justify-center shrink-0">
+            <BladeLogo className="w-7 h-7" />
           </div>
           <div>
             <div className="text-sm font-bold text-white tracking-tight">Blade Settings</div>
@@ -285,7 +286,7 @@ export function SettingsPage({ url }: { url?: string }) {
         </div>
 
         <div className="pt-4 mt-auto border-t border-white/10 text-[11px] text-white/40 flex items-center justify-between">
-          <span>Blade Browser</span><span>v0.1.1</span>
+          <span className="flex items-center gap-1.5"><BladeLogo className="w-3.5 h-3.5" />Blade Browser</span><span>v0.2.0</span>
         </div>
       </nav>
 
@@ -612,7 +613,32 @@ export function SettingsPage({ url }: { url?: string }) {
 
         {section === 'shortcuts' && <SettingsSection title="Keyboard Shortcuts" description="Shortcuts available in both the browser chrome and web pages.">{SHORTCUT_GROUPS.map((group) => <Card key={group.category} title={group.category}><div className="divide-y divide-white/[0.06]">{group.items.map(([keys, action]) => <div key={keys} className="py-2.5 flex items-center justify-between text-xs"><span className="text-white/80">{action}</span><kbd className="px-2.5 py-1 rounded-lg bg-white/10 border border-white/15 text-white/90 font-mono text-[11px]">{keys}</kbd></div>)}</div></Card>)}</SettingsSection>}
 
-        {section === 'about' && <SettingsSection title="About Blade" description="A multi-process Chromium browser with a local-first data store."><Card title="Blade Browser"><div className="space-y-3 text-xs text-white/80 leading-relaxed"><p>Blade uses Electron WebContentsView tabs, React chrome, and SQLite persistence.</p><div className="grid grid-cols-2 sm:grid-cols-4 gap-3">{[['Engine', 'Chromium'], ['Database', 'SQLite (WAL)'], ['UI layer', 'React + Tailwind'], ['Architecture', 'Multi-process']].map(([label, value]) => <div key={label} className="p-3 rounded-xl bg-white/[0.04] border border-white/10"><div className="text-[10px] text-white/40 uppercase font-semibold">{label}</div><div className="text-xs font-bold text-white mt-0.5">{value}</div></div>)}</div></div></Card></SettingsSection>}
+        {section === 'about' && (
+          <SettingsSection title="About Blade" description="A multi-process Chromium browser with a local-first data store.">
+            <Card title="Blade Browser">
+              <div className="flex items-center gap-4 pb-3 border-b border-white/10">
+                <div className="w-14 h-14 rounded-2xl bg-white/[0.05] border border-white/10 flex items-center justify-center shrink-0 shadow-lg">
+                  <BladeLogo className="w-10 h-10" />
+                </div>
+                <div>
+                  <div className="text-base font-bold text-white tracking-tight">Blade</div>
+                  <div className="text-xs text-white/50">Version 0.2.0 · Glassmorphic Desktop Browser</div>
+                </div>
+              </div>
+              <div className="space-y-3 text-xs text-white/80 leading-relaxed pt-2">
+                <p>Blade uses Electron WebContentsView tabs, React chrome, and SQLite persistence.</p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {[['Engine', 'Chromium'], ['Database', 'SQLite (WAL)'], ['UI layer', 'React + Tailwind'], ['Architecture', 'Multi-process']].map(([label, value]) => (
+                    <div key={label} className="p-3 rounded-xl bg-white/[0.04] border border-white/10">
+                      <div className="text-[10px] text-white/40 uppercase font-semibold">{label}</div>
+                      <div className="text-xs font-bold text-white mt-0.5">{value}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </Card>
+          </SettingsSection>
+        )}
       </main>
       {status && <div className="absolute bottom-4 right-4 glass-panel px-4 py-2 text-xs text-white shadow-xl">{status}</div>}
     </div>
