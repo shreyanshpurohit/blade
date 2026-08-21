@@ -85,12 +85,12 @@ export function FindBar() {
 
   return (
     <div
-      className="flex items-center gap-1.5 px-3 py-1 rounded-xl glass-panel border border-white/20 shadow-md text-xs no-drag select-none"
+      className="flex items-center gap-2 px-3.5 py-1.5 rounded-2xl glass-panel border border-white/20 shadow-2xl backdrop-blur-2xl text-xs no-drag select-none"
       style={{
         background: 'color-mix(in srgb, var(--color-surface-solid, #181818) 96%, var(--app-bg))',
       }}
     >
-      <Icon name="search" size={13} className="text-white/40 shrink-0" />
+      <Icon name="search" size={13} className="text-white/50 shrink-0" />
       <input
         ref={inputRef}
         type="text"

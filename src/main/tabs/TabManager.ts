@@ -1041,20 +1041,6 @@ export class TabManager {
         enabled: !!tab.groupId,
         click: () => { tab.groupId = null; this.emitState(); },
       },
-      {
-        label: 'Change group color',
-        enabled: !!tab.groupId,
-        submenu: [
-          { label: 'Purple', click: () => { if (tab.groupId) this.setGroupColor(tab.groupId, '#6366f1'); } },
-          { label: 'Blue',   click: () => { if (tab.groupId) this.setGroupColor(tab.groupId, '#3b82f6'); } },
-          { label: 'Green',  click: () => { if (tab.groupId) this.setGroupColor(tab.groupId, '#22c55e'); } },
-          { label: 'Yellow', click: () => { if (tab.groupId) this.setGroupColor(tab.groupId, '#eab308'); } },
-          { label: 'Red',    click: () => { if (tab.groupId) this.setGroupColor(tab.groupId, '#ef4444'); } },
-          { label: 'Pink',   click: () => { if (tab.groupId) this.setGroupColor(tab.groupId, '#ec4899'); } },
-          { label: 'Orange', click: () => { if (tab.groupId) this.setGroupColor(tab.groupId, '#f97316'); } },
-          { label: 'Slate',  click: () => { if (tab.groupId) this.setGroupColor(tab.groupId, '#374151'); } },
-        ],
-      },
       { type: 'separator' },
       {
         label: 'Reload',

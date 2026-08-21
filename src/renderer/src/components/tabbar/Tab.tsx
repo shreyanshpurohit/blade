@@ -61,7 +61,6 @@ export default function Tab({
         e.stopPropagation();
         void api.tabs.showContextMenu(tab.id, { x: e.clientX, y: e.clientY });
       }}
-      style={group && !compact ? { borderBottomColor: `${group.color}cc`, borderBottomWidth: '2px', borderBottomStyle: 'solid' } : undefined}
       className={`group h-8 flex items-center gap-2 px-3 rounded-lg transition-all duration-200 ease-out cursor-pointer select-none relative ${
         active
           ? 'bg-white/[0.12] text-[var(--color-text-primary)] shadow-sm'
@@ -72,6 +71,14 @@ export default function Tab({
         dropPosition === 'center' ? 'drop-indicator-group' : ''
       }`}
     >
+      {/* Group colored bottom underline bar */}
+      {group && !compact && (
+        <div
+          className="absolute -bottom-[1px] left-0.5 right-0.5 h-[2.5px] rounded-full z-20 pointer-events-none"
+          style={{ backgroundColor: group.color }}
+        />
+      )}
+
       {/* Left drop insertion line */}
       {dropPosition === 'left' && (
         <div className="absolute left-0 top-1 bottom-1 w-1 drop-indicator-line z-30 pointer-events-none" />

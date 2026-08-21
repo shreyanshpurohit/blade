@@ -227,18 +227,16 @@ export function TabBar() {
                         setDragOverId(null);
                         setDropPos(null);
                       }}
-                      className="tab-group-chip shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-semibold tracking-wide select-none cursor-pointer transition-all hover:brightness-110 active:scale-95 shadow-sm border border-white/10"
+                      className="tab-group-chip shrink-0 flex items-center justify-center px-3 py-1 rounded-xl text-[12px] font-semibold tracking-wide select-none cursor-pointer transition-all hover:brightness-115 active:scale-95 shadow-sm"
                       style={{
                         '--group-color': group.color,
-                        backgroundColor: `color-mix(in srgb, ${group.color} 20%, transparent)`,
+                        backgroundColor: `color-mix(in srgb, ${group.color} 26%, transparent)`,
                         color: group.color,
-                        borderColor: `color-mix(in srgb, ${group.color} 40%, transparent)`,
+                        border: `1.5px solid color-mix(in srgb, ${group.color} 65%, transparent)`,
                       } as React.CSSProperties}
-                      title={`${group.name} (${groupTabCount}) — Click to configure, drop tab here to add`}
+                      title={`${group.name} (${groupTabCount}) — Click to configure`}
                     >
-                      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: group.color }} />
-                      <span className="truncate max-w-[80px]">{group.name}</span>
-                      <span className="text-[9.5px] opacity-70 px-1 py-0.2 rounded-full bg-white/10">{groupTabCount}</span>
+                      <span className="truncate max-w-[100px]">{group.name}</span>
                     </button>
                   )}
                   {!isCollapsed && (

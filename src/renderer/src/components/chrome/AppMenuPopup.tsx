@@ -457,7 +457,7 @@ function MenuItemWithSubmenu({
 }: {
   id: SubmenuId;
   activeSubmenu: SubmenuId;
-  setActiveSubmenu: (id: SubmenuId) => void;
+  setActiveSubmenu: React.Dispatch<React.SetStateAction<SubmenuId>>;
   icon: IconName;
   label: string;
   shortcut?: string;
@@ -466,14 +466,10 @@ function MenuItemWithSubmenu({
   const isOpen = activeSubmenu === id;
 
   return (
-    <div
-      className="relative"
-      onMouseEnter={() => setActiveSubmenu(id)}
-      onMouseLeave={() => setActiveSubmenu(null)}
-    >
+    <div className="flex flex-col">
       <button
         type="button"
-        onClick={() => setActiveSubmenu(isOpen ? null : id)}
+        onClick={() => setActiveSubmenu((curr) => (curr === id ? null : id))}
         className={`w-full flex items-center justify-between px-2.5 py-1 rounded-lg text-[11.5px] font-medium transition-colors ${
           isOpen
             ? 'bg-white/[0.10] text-[var(--color-text-primary)]'
@@ -490,17 +486,16 @@ function MenuItemWithSubmenu({
               {shortcut}
             </span>
           )}
-          <Icon name="chevron-right" size={10} className="opacity-40" />
+          <Icon
+            name="chevron-right"
+            size={10}
+            className={`transition-transform duration-200 opacity-60 ${isOpen ? 'rotate-90 text-white' : ''}`}
+          />
         </div>
       </button>
 
       {isOpen && (
-        <div
-          className="absolute right-[calc(100%+4px)] top-0 w-[200px] glass-panel border border-white/15 rounded-xl p-1 shadow-2xl flex flex-col gap-0.5 z-50 animate-menu-in"
-          style={{
-            background: 'color-mix(in srgb, var(--color-surface-solid, #141414) 98%, var(--app-bg))',
-          }}
-        >
+        <div className="pl-3.5 pr-1 py-1 my-0.5 flex flex-col gap-0.5 border-l-2 border-white/10 ml-3.5 animate-menu-in">
           {children}
         </div>
       )}

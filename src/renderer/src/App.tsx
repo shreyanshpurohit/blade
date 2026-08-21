@@ -370,14 +370,14 @@ function ChromeShell() {
             <BookmarksBar />
           </div>
         )}
-
-        {/* Find in Page Bar */}
-        {findBarOpen && (
-          <div className="no-drag border-t border-white/[0.06] px-4 py-1.5 flex items-center justify-end bg-black/25">
-            <FindBar />
-          </div>
-        )}
       </header>}
+
+      {/* ── Floating Find in Page Popup ── */}
+      {findBarOpen && (
+        <div className="fixed top-14 right-6 z-50 animate-menu-in no-drag">
+          <FindBar />
+        </div>
+      )}
 
       {/* ── Settings Page ── */}
       {isSettings && (
