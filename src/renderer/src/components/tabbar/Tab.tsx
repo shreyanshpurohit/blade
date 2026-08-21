@@ -71,10 +71,10 @@ export default function Tab({
         dropPosition === 'center' ? 'drop-indicator-group' : ''
       }`}
     >
-      {/* Group colored bottom underline bar */}
+      {/* Group colored bottom underline bar (extends seamlessly across tab gaps) */}
       {group && !compact && (
         <div
-          className="absolute -bottom-[1px] left-0.5 right-0.5 h-[2.5px] rounded-full z-20 pointer-events-none"
+          className="absolute -bottom-[1px] -left-1 -right-1 h-[2.5px] z-20 pointer-events-none"
           style={{ backgroundColor: group.color }}
         />
       )}

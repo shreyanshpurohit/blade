@@ -69,6 +69,7 @@ const api = {
     setSidebarPinned: (pinned: boolean) => invoke(IPC.SetSidebarPinned, pinned),
     setSidebarWidth: (px: number) => invoke(IPC.SetSidebarWidth, px),
     setChromeHeight: (px: number) => invoke(IPC.SetChromeHeight, px),
+    setSuggestionsHeight: (px: number) => invoke(IPC.SetSuggestionsHeight, px),
     windowControl: (a: 'minimize' | 'maximize' | 'close') => invoke(IPC.WindowControl, a),
     toggleFullscreen: () => invoke(IPC.WindowToggleFullscreen),
     newWindow: () => invoke(IPC.NewWindow),

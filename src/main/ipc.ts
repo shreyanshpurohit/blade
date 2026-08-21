@@ -356,6 +356,10 @@ export function registerIpc() {
     const { tm } = managerFor(e);
     tm.setChromeHeight(px);
   });
+  ipcMain.handle(IPC.SetSuggestionsHeight, (e, px: number) => {
+    const { tm } = managerFor(e);
+    tm.setSuggestionsHeight(px);
+  });
   ipcMain.handle(IPC.BookmarkCreateFolder, (_e, title: string, parentId: number | null) =>
     createFolder(title, parentId),
   );

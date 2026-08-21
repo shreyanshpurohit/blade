@@ -741,8 +741,15 @@ export class TabManager {
     this.relayout();
   }
 
+  private suggestionsHeight = 0;
+
   setChromeHeight(px: number) {
     this.chromeHeight = px;
+    this.relayout();
+  }
+
+  setSuggestionsHeight(px: number) {
+    this.suggestionsHeight = Math.max(0, px);
     this.relayout();
   }
 
@@ -777,11 +784,12 @@ export class TabManager {
     // page cannot cover the open sidebar. Internal pages can still float.
     const dockSidebar = this.sidebarOpen && (this.sidebarPinned || !isInternalUrl(active.state.url));
     const x = dockSidebar ? this.sidebarWidth : 0;
+    const topY = this.chromeHeight + this.suggestionsHeight;
     active.view.setBounds({
       x,
-      y: this.chromeHeight,
+      y: topY,
       width: Math.max(0, width - x),
-      height: Math.max(0, height - this.chromeHeight),
+      height: Math.max(0, height - topY),
     });
   }
 

@@ -37,6 +37,7 @@ export function AddressBar({ showTrafficLights = false }: AddressBarProps) {
 
   const inputRef = useRef<HTMLInputElement>(null);
   const omniboxRef = useRef<HTMLDivElement>(null);
+  const suggestionsDropdownRef = useRef<HTMLDivElement>(null);
   const bookmarkBtnRef = useRef<HTMLButtonElement>(null);
   const downloadBtnRef = useRef<HTMLButtonElement>(null);
   const menuBtnRef = useRef<HTMLButtonElement>(null);
@@ -91,11 +92,29 @@ export function AddressBar({ showTrafficLights = false }: AddressBarProps) {
     };
   }, [value, focused, tab?.url]);
 
+  useEffect(() => {
+    if (focused && suggestions.length > 0) {
+      const raf = requestAnimationFrame(() => {
+        const h = suggestionsDropdownRef.current?.getBoundingClientRect().height ?? 0;
+        if (h > 0) {
+          void api.app.setSuggestionsHeight(Math.round(h + 16));
+        }
+      });
+      return () => {
+        cancelAnimationFrame(raf);
+        void api.app.setSuggestionsHeight(0);
+      };
+    } else {
+      void api.app.setSuggestionsHeight(0);
+    }
+  }, [focused, suggestions.length]);
+
   const submit = (raw: string) => {
     if (!raw.trim()) return;
     navigateActive(raw.trim());
     setFocused(false);
     setSuggestions([]);
+    void api.app.setSuggestionsHeight(0);
     void api.app.hideSuggestions();
     inputRef.current?.blur();
   };
@@ -128,6 +147,7 @@ export function AddressBar({ showTrafficLights = false }: AddressBarProps) {
     } else if (e.key === 'Escape') {
       setFocused(false);
       setSuggestions([]);
+      void api.app.setSuggestionsHeight(0);
       setValue(displayUrl(tab?.url ?? ''));
       setOriginalQuery('');
       setHighlight(-1);
@@ -315,7 +335,10 @@ export function AddressBar({ showTrafficLights = false }: AddressBarProps) {
 
           {/* Inline Suggestions Dropdown */}
           {focused && suggestions.length > 0 && (
-            <div className="absolute top-[calc(100%+8px)] left-0 right-0 z-50 backdrop-blur-2xl bg-[var(--color-surface)]/95 border border-white/[0.08] rounded-2xl shadow-2xl overflow-y-auto max-h-[420px] py-2 flex flex-col gap-1">
+            <div
+              ref={suggestionsDropdownRef}
+              className="absolute top-[calc(100%+8px)] left-0 right-0 z-50 backdrop-blur-2xl bg-[var(--color-surface)]/95 border border-white/[0.08] rounded-2xl shadow-2xl overflow-y-auto max-h-[420px] py-2 flex flex-col gap-1"
+            >
               {/* Top sites grid (if any top-sites exist) */}
               {suggestions.some(s => s.type === 'top-site') && (
                 <div className="flex overflow-x-auto gap-2 px-3 pb-2 mb-1 border-b border-white/[0.08] custom-scrollbar">

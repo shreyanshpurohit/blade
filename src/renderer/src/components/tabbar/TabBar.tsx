@@ -233,7 +233,7 @@ export function TabBar() {
                         setDragOverId(null);
                         setDropPos(null);
                       }}
-                      className="tab-group-chip shrink-0 flex items-center justify-center px-3 py-1 rounded-xl text-[12px] font-semibold tracking-wide select-none cursor-pointer transition-all hover:brightness-115 active:scale-95 shadow-sm"
+                      className="tab-group-chip relative shrink-0 flex items-center justify-center px-3 py-1 rounded-xl text-[12px] font-semibold tracking-wide select-none cursor-pointer transition-all hover:brightness-115 active:scale-95 shadow-sm"
                       style={{
                         '--group-color': group.color,
                         backgroundColor: `color-mix(in srgb, ${group.color} 26%, transparent)`,
@@ -243,6 +243,10 @@ export function TabBar() {
                       title={`${group.name} (${groupTabCount}) — Click to configure`}
                     >
                       <span className="truncate max-w-[100px]">{group.name}</span>
+                      <div
+                        className="absolute -bottom-[1px] left-0 -right-1 h-[2.5px] z-20 pointer-events-none"
+                        style={{ backgroundColor: group.color }}
+                      />
                     </button>
                   )}
                   {!isCollapsed && (
