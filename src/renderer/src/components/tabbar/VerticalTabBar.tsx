@@ -302,13 +302,10 @@ export function VerticalTabBar() {
                         setDragOverId(null);
                         setDropPos(null);
                       }}
-                      className="group/grp mt-2 mb-1 px-2 py-1.5 flex items-center justify-between rounded-xl select-none cursor-pointer transition-all hover:bg-white/[0.06] border border-transparent hover:border-white/10"
-                      style={{
-                        '--group-color': group.color,
-                      } as React.CSSProperties}
+                      className="group/grp mt-2.5 mb-1 px-2 py-1 flex items-center justify-between rounded-xl select-none cursor-pointer transition-all hover:bg-white/[0.04]"
                       title={`${group.name} (${groupTabCount}) — Click to configure, drop tab here to add`}
                     >
-                      <div className="flex items-center gap-2 min-w-0">
+                      <div className="flex items-center gap-1.5 min-w-0">
                         <button
                           type="button"
                           onClick={(e) => {
@@ -324,14 +321,19 @@ export function VerticalTabBar() {
                             strokeWidth={2}
                           />
                         </button>
-                        <span
-                          className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm"
-                          style={{ backgroundColor: group.color }}
-                        />
-                        <span className="text-[11.5px] font-semibold text-white/90 truncate max-w-[120px]">
-                          {group.name}
-                        </span>
-                        <span className="text-[10px] font-medium text-white/50 px-1.5 py-0.2 rounded-full bg-white/[0.08]">
+
+                        <div
+                          className="px-2.5 py-0.5 rounded-lg text-[11px] font-bold tracking-wide shadow-sm flex items-center gap-1.5 transition-all hover:brightness-115 active:scale-95"
+                          style={{
+                            backgroundColor: `color-mix(in srgb, ${group.color} 26%, transparent)`,
+                            color: group.color,
+                            border: `1.5px solid color-mix(in srgb, ${group.color} 65%, transparent)`,
+                          }}
+                        >
+                          <span className="truncate max-w-[120px]">{group.name}</span>
+                        </div>
+
+                        <span className="text-[9.5px] font-medium text-white/40 px-1 py-0.2 rounded-full bg-white/[0.06]">
                           {groupTabCount}
                         </span>
                       </div>
@@ -459,6 +461,8 @@ function VerticalTabItem({
       onContextMenu={(e) => onContextMenu(e, tab)}
       style={group ? { borderLeftColor: group.color, borderLeftWidth: '2.5px', borderLeftStyle: 'solid' } : undefined}
       className={`group h-9 flex items-center gap-2.5 px-3 rounded-xl transition-all duration-150 cursor-pointer select-none relative ${
+        group ? 'ml-2' : ''
+      } ${
         isActive
           ? 'bg-white/[0.14] text-[var(--color-text-primary)] shadow-sm font-medium'
           : 'bg-transparent text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-white/[0.06]'
