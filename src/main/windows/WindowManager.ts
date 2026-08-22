@@ -263,7 +263,7 @@ export const WindowManager = {
       x: Math.max(0, Math.round(bounds.x)),
       y: Math.max(0, Math.round(bounds.y)),
       width: Math.max(240, Math.round(bounds.width)),
-      height: Math.min(380, Math.max(140, contentHeight - Math.round(bounds.y) - 16)),
+      height: Math.min(270, Math.max(120, contentHeight - Math.round(bounds.y) - 16)),
     });
   },
 

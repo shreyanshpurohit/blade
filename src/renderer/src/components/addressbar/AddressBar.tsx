@@ -71,6 +71,8 @@ export function AddressBar({ showTrafficLights = false }: AddressBarProps) {
     }
   }, [tab?.url, focused]);
 
+  const isInternal = !tab?.url || tab.url.startsWith('blade://') || tab.url.startsWith('lumen://') || tab.url.startsWith('about:');
+
   useEffect(() => {
     if (!focused) {
       setSuggestions([]);
@@ -83,8 +85,9 @@ export function AddressBar({ showTrafficLights = false }: AddressBarProps) {
       try {
         const s = (await api.app.getSuggestions(q)) as Suggestion[];
         if (!cancelled) {
-          setSuggestions(s.slice(0, 10));
-          if (s.length > 0 && omniboxRef.current) {
+          const list = s.slice(0, 6);
+          setSuggestions(list);
+          if (list.length > 0 && !isInternal && omniboxRef.current) {
             const rect = omniboxRef.current.getBoundingClientRect();
             void api.app.showSuggestions(
               { x: rect.left, y: rect.bottom + 6, width: rect.width },
@@ -103,7 +106,7 @@ export function AddressBar({ showTrafficLights = false }: AddressBarProps) {
       cancelled = true;
       clearTimeout(t);
     };
-  }, [value, focused]);
+  }, [value, focused, isInternal]);
 
   const submit = (raw: string) => {
     if (!raw.trim()) return;
@@ -327,11 +330,11 @@ export function AddressBar({ showTrafficLights = false }: AddressBarProps) {
             </button>
           )}
 
-          {/* Inline Suggestions Dropdown */}
-          {focused && suggestions.length > 0 && (
+          {/* Inline Suggestions Dropdown (used on internal pages where WebContentsView overlay is not active) */}
+          {isInternal && focused && suggestions.length > 0 && (
             <div
               ref={suggestionsDropdownRef}
-              className="absolute top-[calc(100%+8px)] left-0 right-0 z-50 backdrop-blur-2xl bg-[var(--color-surface)]/95 border border-white/[0.08] rounded-2xl shadow-2xl overflow-y-auto max-h-[420px] py-2 flex flex-col gap-1"
+              className="absolute top-[calc(100%+8px)] left-0 right-0 z-50 backdrop-blur-2xl bg-[var(--color-surface)]/95 border border-white/[0.08] rounded-2xl shadow-2xl overflow-hidden max-h-[260px] py-1 flex flex-col gap-0.5"
             >
               {/* List suggestions */}
               {suggestions.map((s, i) => {

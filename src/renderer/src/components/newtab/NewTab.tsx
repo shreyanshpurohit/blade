@@ -113,7 +113,7 @@ export function NewTab() {
     const t = setTimeout(async () => {
       try {
         const s = (await api.app.getSuggestions(q)) as Suggestion[];
-        if (!cancelled) setSuggestions((s as Suggestion[]) || []);
+        if (!cancelled) setSuggestions(((s as Suggestion[]) || []).slice(0, 6));
       } catch {
         // ignore
       }

@@ -37,7 +37,7 @@ export function SuggestionsPopup({ initialQuery = '' }: SuggestionsPopupProps) {
     let cancelled = false;
     void api.app.getSuggestions(q).then((s) => {
       if (!cancelled) {
-        setSuggestions((s as Suggestion[]) || []);
+        setSuggestions(((s as Suggestion[]) || []).slice(0, 6));
       }
     });
     return () => {
@@ -49,6 +49,30 @@ export function SuggestionsPopup({ initialQuery = '' }: SuggestionsPopupProps) {
     navigateActive(url);
     void api.app.hideSuggestions();
   };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setHighlight((prev) => Math.min(prev + 1, suggestions.length - 1));
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setHighlight((prev) => Math.max(prev - 1, -1));
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (highlight >= 0 && suggestions[highlight]) {
+          select(suggestions[highlight].url);
+        } else if (query.trim()) {
+          select(query.trim());
+        }
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        void api.app.hideSuggestions();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [highlight, suggestions, query]);
 
   const getCategoryIcon = (type: Suggestion['type']) => {
     switch (type) {

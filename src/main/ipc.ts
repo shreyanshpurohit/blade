@@ -118,92 +118,141 @@ export function registerIpc() {
     }
   }
 
+  function cleanHistoryTitle(title: string, url: string): string {
+    try {
+      const parsed = new URL(url);
+      const searchParam = parsed.searchParams.get('q') || parsed.searchParams.get('query');
+      if (searchParam && (!title || /^(google|google search|search|bing|duckduckgo)$/i.test(title.trim()))) {
+        return searchParam;
+      }
+      if (title && /^(google search|google)$/i.test(title.trim())) {
+        return searchParam || parsed.hostname;
+      }
+    } catch {}
+    return title || url;
+  }
+
   ipcMain.handle(IPC.GetSuggestions, async (_e, query: string): Promise<Suggestion[]> => {
     const trimmedQuery = query.trim();
     if (!trimmedQuery) {
-      const recentHistory = searchHistory('', 6).map<Suggestion>((h) => ({
-        type: 'history',
-        title: h.title || h.url,
-        url: h.url,
-      }));
-      const bookmarks = searchBookmarks('', 4)
-        .filter((b) => Boolean(b.url))
-        .map<Suggestion>((b) => ({
-          type: 'bookmark',
-          title: b.title,
-          url: b.url ?? '',
-        }));
+      const recentHistory = searchHistory('', 10);
+      const bookmarks = searchBookmarks('', 5);
 
-      const seenUrls = new Set<string>();
+      const seen = new Set<string>();
       const list: Suggestion[] = [];
-      for (const item of [...recentHistory, ...bookmarks]) {
-        if (item.url && !seenUrls.has(item.url)) {
-          seenUrls.add(item.url);
-          list.push(item);
+
+      for (const h of recentHistory) {
+        const title = cleanHistoryTitle(h.title, h.url);
+        const titleKey = title.toLowerCase();
+        const urlKey = h.url.toLowerCase();
+        if (h.url && !seen.has(urlKey) && !seen.has(titleKey)) {
+          seen.add(urlKey);
+          seen.add(titleKey);
+          list.push({
+            type: 'history',
+            title,
+            url: h.url,
+          });
+          if (list.length >= 4) break;
         }
       }
 
-      return list.slice(0, 8);
+      for (const b of bookmarks) {
+        if (b.url) {
+          const titleKey = b.title.toLowerCase();
+          const urlKey = b.url.toLowerCase();
+          if (!seen.has(urlKey) && !seen.has(titleKey)) {
+            seen.add(urlKey);
+            seen.add(titleKey);
+            list.push({
+              type: 'bookmark',
+              title: b.title,
+              url: b.url,
+            });
+            if (list.length >= 6) break;
+          }
+        }
+      }
+
+      return list.slice(0, 6);
     }
 
     const isUrl = trimmedQuery.includes('.') && !trimmedQuery.includes(' ');
     const suggestions: Suggestion[] = [];
-    const seenUrls = new Set<string>();
+    const seen = new Set<string>();
 
+    // 1. Direct URL match
     if (isUrl) {
       const fullUrl = /^https?:\/\//i.test(trimmedQuery) ? trimmedQuery : `https://${trimmedQuery}`;
       suggestions.push({ type: 'url', title: trimmedQuery, url: fullUrl });
-      seenUrls.add(fullUrl);
-      seenUrls.add(trimmedQuery);
+      seen.add(fullUrl.toLowerCase());
+      seen.add(trimmedQuery.toLowerCase());
     }
 
-    // 1. History matches
-    const history = searchHistory(trimmedQuery, 5);
-    for (const h of history) {
-      if (!seenUrls.has(h.url)) {
-        seenUrls.add(h.url);
-        suggestions.push({
-          type: 'history',
-          title: h.title || h.url,
-          url: h.url,
-        });
-      }
-    }
-
-    // 2. Bookmarks matches
-    const bookmarks = searchBookmarks(trimmedQuery, 3);
-    for (const b of bookmarks) {
-      if (b.url && !seenUrls.has(b.url)) {
-        seenUrls.add(b.url);
-        suggestions.push({
-          type: 'bookmark',
-          title: b.title,
-          url: b.url,
-        });
-      }
-    }
-
-    // 3. Google live search suggestions
+    // 2. Google live search suggestions (highest priority for query predictions)
     const googleQueries = await fetchGoogleSuggestions(trimmedQuery);
     for (const gq of googleQueries) {
-      if (!seenUrls.has(gq.toLowerCase()) && gq.toLowerCase() !== trimmedQuery.toLowerCase()) {
-        seenUrls.add(gq.toLowerCase());
+      const key = gq.toLowerCase();
+      if (!seen.has(key) && key !== trimmedQuery.toLowerCase()) {
+        seen.add(key);
         suggestions.push({
           type: 'search',
           title: gq,
           url: gq,
         });
+        if (suggestions.length >= 4) break;
       }
     }
 
-    // 4. Default primary search query
-    suggestions.push({
-      type: 'search',
-      title: `Search for "${trimmedQuery}"`,
-      url: trimmedQuery,
-    });
+    // 3. Relevant History matches (deduplicated by title & url, max 2 items)
+    const history = searchHistory(trimmedQuery, 10);
+    let historyCount = 0;
+    for (const h of history) {
+      const title = cleanHistoryTitle(h.title, h.url);
+      const titleKey = title.toLowerCase();
+      const urlKey = h.url.toLowerCase();
+      if (!seen.has(urlKey) && !seen.has(titleKey)) {
+        seen.add(urlKey);
+        seen.add(titleKey);
+        suggestions.push({
+          type: 'history',
+          title,
+          url: h.url,
+        });
+        historyCount++;
+        if (historyCount >= 2) break;
+      }
+    }
 
-    return suggestions.slice(0, 10);
+    // 4. Relevant Bookmarks matches (max 1 item)
+    const bookmarks = searchBookmarks(trimmedQuery, 5);
+    for (const b of bookmarks) {
+      if (b.url) {
+        const titleKey = b.title.toLowerCase();
+        const urlKey = b.url.toLowerCase();
+        if (!seen.has(urlKey) && !seen.has(titleKey)) {
+          seen.add(urlKey);
+          seen.add(titleKey);
+          suggestions.push({
+            type: 'bookmark',
+            title: b.title,
+            url: b.url,
+          });
+          break;
+        }
+      }
+    }
+
+    // 5. Default search for query
+    if (!seen.has(trimmedQuery.toLowerCase())) {
+      suggestions.push({
+        type: 'search',
+        title: trimmedQuery,
+        url: trimmedQuery,
+      });
+    }
+
+    return suggestions.slice(0, 6);
   });
 
   ipcMain.handle(IPC.WindowControl, (e, action: 'minimize' | 'maximize' | 'close') => {
