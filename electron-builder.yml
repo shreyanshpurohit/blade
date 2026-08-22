@@ -16,14 +16,19 @@ linux:
     - deb
     - pacman
     - rpm
-    - snap
+    - tar.gz
   category: Network
   icon: build/icon.png
-win:
-  target:
-    - nsis
-    - portable
-  icon: build/icon.png
+deb:
+  depends:
+    - libnotify4
+    - libsecret-1-0
+    - libnss3
+rpm:
+  depends:
+    - libnotify
+    - libsecret
+    - nss
 pacman:
   depends:
     - c-ares
@@ -39,3 +44,23 @@ pacman:
     - snappy
     - libnotify
     - libsecret
+win:
+  target:
+    - nsis
+    - portable
+    - zip
+  icon: build/icon.png
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+mac:
+  target:
+    - dmg
+    - zip
+  category: public.app-category.productivity
+  icon: build/icon.png
+  hardenedRuntime: true
+  gatekeeperAssess: false
+

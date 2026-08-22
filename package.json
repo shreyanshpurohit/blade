@@ -1,6 +1,6 @@
 {
   "name": "blade-browser",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "A glassmorphic desktop web browser: Blade",
   "main": "out/main/index.cjs",
   "type": "module",
@@ -18,7 +18,9 @@
     "native:linux": "cd node_modules/better-sqlite3 && npx prebuild-install --runtime=electron --target=33.4.11 --platform=linux --arch=x64",
     "native:win": "cd node_modules/better-sqlite3 && npx prebuild-install --runtime=electron --target=33.4.11 --platform=win32 --arch=x64",
     "dist": "npm run native:linux && npm run build && electron-builder --linux",
+    "dist:linux": "npm run native:linux && npm run build && electron-builder --linux",
     "dist:win": "npm run native:win && npm run build && electron-builder --win && npm run native:linux",
+    "dist:mac": "npm run build && electron-builder --mac",
     "dist:all": "npm run native:win && npm run build && electron-builder --win && npm run native:linux && electron-builder --linux"
   },
   "devDependencies": {
