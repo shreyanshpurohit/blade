@@ -101,23 +101,23 @@ export function NewTab() {
   const [highlight, setHighlight] = useState(-1);
   const [focused, setFocused] = useState(false);
 
-  // Fetch suggestions when searchValue changes
+  // Fetch suggestions when searchValue changes or on focus
   useEffect(() => {
-    const q = searchValue.trim();
-    if (!q || !focused) {
+    if (!focused) {
       setSuggestions([]);
       setHighlight(-1);
       return;
     }
+    const q = searchValue.trim();
     let cancelled = false;
     const t = setTimeout(async () => {
       try {
         const s = (await api.app.getSuggestions(q)) as Suggestion[];
-        if (!cancelled) setSuggestions(s.slice(0, 8));
+        if (!cancelled) setSuggestions((s as Suggestion[]) || []);
       } catch {
         // ignore
       }
-    }, 100);
+    }, 60);
     return () => {
       cancelled = true;
       clearTimeout(t);

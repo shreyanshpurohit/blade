@@ -72,12 +72,12 @@ export function AddressBar({ showTrafficLights = false }: AddressBarProps) {
   }, [tab?.url, focused]);
 
   useEffect(() => {
-    const q = value.trim();
-    if (!focused || q === displayUrl(tab?.url ?? '')) {
+    if (!focused) {
       setSuggestions([]);
       void api.app.hideSuggestions();
       return;
     }
+    const q = value.trim();
     let cancelled = false;
     const t = setTimeout(async () => {
       try {
@@ -98,12 +98,12 @@ export function AddressBar({ showTrafficLights = false }: AddressBarProps) {
       } catch {
         // ignore
       }
-    }, 100);
+    }, 60);
     return () => {
       cancelled = true;
       clearTimeout(t);
     };
-  }, [value, focused, tab?.url]);
+  }, [value, focused]);
 
   const submit = (raw: string) => {
     if (!raw.trim()) return;
@@ -333,23 +333,8 @@ export function AddressBar({ showTrafficLights = false }: AddressBarProps) {
               ref={suggestionsDropdownRef}
               className="absolute top-[calc(100%+8px)] left-0 right-0 z-50 backdrop-blur-2xl bg-[var(--color-surface)]/95 border border-white/[0.08] rounded-2xl shadow-2xl overflow-y-auto max-h-[420px] py-2 flex flex-col gap-1"
             >
-              {/* Top sites grid (if any top-sites exist) */}
-              {suggestions.some(s => s.type === 'top-site') && (
-                <div className="flex overflow-x-auto gap-2 px-3 pb-2 mb-1 border-b border-white/[0.08] custom-scrollbar">
-                  {suggestions.filter(s => s.type === 'top-site').map((s, i) => (
-                    <div key={'top'+i} onClick={() => submit(s.url)} className="flex flex-col items-center gap-1.5 p-2 hover:bg-white/[0.06] cursor-pointer rounded-xl min-w-[72px] flex-shrink-0 transition-colors">
-                      <div className="w-10 h-10 rounded-full bg-white/[0.05] flex items-center justify-center">
-                        <Icon name="arrow-up-right" size={18} className="text-white/40" />
-                      </div>
-                      <span className="text-[10px] text-white/70 truncate w-full text-center">{s.title ? s.title.substring(0, 15) : (s.url ? new URL(s.url).hostname : '')}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-              
-              {/* List suggestions (non top-site) */}
+              {/* List suggestions */}
               {suggestions.map((s, i) => {
-                if (s.type === 'top-site') return null;
                 const isHighlighted = i === highlight;
                 return (
                   <div

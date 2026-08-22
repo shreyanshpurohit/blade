@@ -121,21 +121,29 @@ export function registerIpc() {
   ipcMain.handle(IPC.GetSuggestions, async (_e, query: string): Promise<Suggestion[]> => {
     const trimmedQuery = query.trim();
     if (!trimmedQuery) {
-      const topSites = listHistory('', 8).map<Suggestion>((h) => ({
-        type: 'top-site',
-        title: h.title || h.url,
-        url: h.url,
-      }));
       const recentHistory = searchHistory('', 6).map<Suggestion>((h) => ({
         type: 'history',
         title: h.title || h.url,
         url: h.url,
       }));
+      const bookmarks = searchBookmarks('', 4)
+        .filter((b) => Boolean(b.url))
+        .map<Suggestion>((b) => ({
+          type: 'bookmark',
+          title: b.title,
+          url: b.url ?? '',
+        }));
 
-      const topSiteUrls = new Set(topSites.map((s) => s.url));
-      const filteredHistory = recentHistory.filter((h) => !topSiteUrls.has(h.url));
+      const seenUrls = new Set<string>();
+      const list: Suggestion[] = [];
+      for (const item of [...recentHistory, ...bookmarks]) {
+        if (item.url && !seenUrls.has(item.url)) {
+          seenUrls.add(item.url);
+          list.push(item);
+        }
+      }
 
-      return [...topSites, ...filteredHistory].slice(0, 8);
+      return list.slice(0, 8);
     }
 
     const isUrl = trimmedQuery.includes('.') && !trimmedQuery.includes(' ');
